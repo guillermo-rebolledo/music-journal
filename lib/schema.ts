@@ -1,4 +1,4 @@
-import { boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, date, index, integer, jsonb, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
 
 export const user = pgTable("user", {
   id: text().primaryKey(),
@@ -65,6 +65,17 @@ export const catalogCache = pgTable("catalog_cache", {
   value: jsonb().notNull(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 });
+
+export const listen = pgTable("listen", {
+  listenerId: text("listener_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  submissionKey: text("submission_key").notNull(),
+  albumId: text("album_id").notNull().references(() => album.id),
+  listenDate: date("listen_date").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  primaryKey({ columns: [table.listenerId, table.submissionKey] }),
+  index("listen_listener_date_idx").on(table.listenerId, table.listenDate),
+]);
 
 export const providerLimit = pgTable("provider_limit", {
   provider: text().primaryKey(),

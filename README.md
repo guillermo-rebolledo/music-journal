@@ -1,6 +1,6 @@
 # Music Journal
 
-A private web app for keeping track of album listens, albums you want to listen to, and artists you want to explore. Listeners can search albums, open their detail pages, and keep a private Want to Listen list.
+A private web app for keeping track of album listens, albums you want to listen to, and artists you want to explore. Listeners can search albums, log dated listens on their detail pages, and keep a private Want to Listen list.
 
 ## Run locally
 
@@ -29,7 +29,7 @@ For deployment, set the three environment variables from `.env.example` before b
 
 Listeners create an account with a name, email address, and password. Email and password is the initial method so local development and tests can run without a mail service or identity provider. The email serves as the sign-in identifier. Email verification and password recovery are outside this initial flow. Reuse the same credentials on another device to open the same Journal.
 
-Better Auth stores users, credentials, and sessions in Postgres through Drizzle. The Journal resolves the listener from the validated session on the server. Sign-out revokes the current session. Journal entries will need to be scoped to that same server-resolved listener when those features land.
+Better Auth stores users, credentials, and sessions in Postgres through Drizzle. The Journal resolves the listener from the validated session on the server. Sign-out revokes the current session. Dated listens and Want to Listen actions use that same server-resolved listener.
 
 ## Verify
 
@@ -50,3 +50,21 @@ Apply the new migration before serving this version. Album metadata remains avai
 All app instances must share the same Postgres database. A transaction advisory lock serializes MusicBrainz requests, rechecks a shared cache after acquiring the lock, and coalesces repeated requests. Requests are separated by at least one second after completion, with a four-second upstream timeout, a five-second lock wait, a bounded connection pool/queue, a 1 MB response cap, and at most 20 search results. The provider's Retry-After response blocks further requests across instances. Successful search results are cached for 15 minutes, identity lookups for one day, and errors for three seconds; expired cache entries are pruned on a provider request. Database connection limits remain deployment-specific; tune the app instance count against available Postgres connections.
 
 `MUSICBRAINZ_BASE_URL` can point server-side requests at a trusted MusicBrainz-compatible endpoint (default: `https://musicbrainz.org/ws/2`). The browser suite starts its own local stub through this setting and never calls the live catalog. It covers ambiguous titles, missing metadata, concurrent/replayed saves, two-account isolation, outages, rate limits, timeout recovery, and phone keyboard use. Before beta, separately spot-check the live provider from the deployment host, including multilingual titles.
+
+## Listen dates
+
+Listen dates are calendar dates, stored without a time or timezone. “Today” is
+the current UTC calendar date, both for the form default and server validation.
+The form labels this explicitly. Earlier dates are allowed; future dates and
+invalid calendar dates are rejected. Separate submissions may share a date.
+
+Logging directly from an album page validates and retains its Catalog details.
+The Journal shows the 50 most recent listens by listen date (newest first), and
+each album page shows that listener's full history. Listened status comes from
+those records; it does not prevent saving the album again.
+
+Each form submission carries a listener-scoped submission key. Creating its
+listen and removing current Want to Listen membership share one transaction.
+Replaying a successful key does neither operation again, preserving later
+re-saves. Failed submissions keep their key for retry. Apply the dated-listens
+migration before serving this version.
