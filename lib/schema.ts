@@ -81,3 +81,15 @@ export const providerLimit = pgTable("provider_limit", {
   provider: text().primaryKey(),
   nextRequestAt: timestamp("next_request_at", { withTimezone: true }).notNull(),
 });
+
+export const artist = pgTable("artist", {
+  id: text().primaryKey(),
+  name: text().notNull(),
+  disambiguation: text(),
+});
+
+export const savedArtist = pgTable("saved_artist", {
+  listenerId: text("listener_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  artistId: text("artist_id").notNull().references(() => artist.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [primaryKey({ columns: [table.listenerId, table.artistId] })]);

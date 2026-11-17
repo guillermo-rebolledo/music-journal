@@ -18,6 +18,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   }
   return <main>
     <Link href="/journal">Back to Journal</Link>
+    <p><Link href="/search/artists">Search artists</Link></p>
     <h1>Search albums</h1>
     <form action="/search" className="auth-form" role="search">
       <label htmlFor="album-title">Album title</label>
