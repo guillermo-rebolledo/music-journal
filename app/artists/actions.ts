@@ -29,6 +29,7 @@ export async function setSavedArtist(_previous: string | null, form: FormData): 
     return error instanceof CatalogError ? error.kind === "missing" ? "This artist could not be found in the catalog." : catalogMessages[error.kind] : "Your list could not be updated. Please try again.";
   }
   revalidatePath("/journal");
+  revalidatePath("/discover");
   revalidatePath("/search/artists");
   return null;
 }
