@@ -1,3 +1,6 @@
+import { Button } from "@/components/ui/button";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { NativeSelect } from "@/components/ui/native-select";
 import Link from "next/link";
 import { and, eq, inArray, notExists } from "drizzle-orm";
 import { redirect } from "next/navigation";
@@ -57,24 +60,24 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
   return (
     <>
       <JournalHeader current="discover" />
-      <main>
+      <main id="main-content" tabIndex={-1}>
         <h1>Discover</h1>
         <section className="results-heading" aria-labelledby="related-artists">
           <h2 id="related-artists">Related artists</h2>
           {requestedSeed !== undefined && !seed && <p>This seed artist is no longer in your Saved Artists.</p>}
           {saved.length ? (
             <form action="/discover" method="get" className="auth-form seed-form">
-              <label>Seed artist
-                <select name="seed" required defaultValue={seed?.id ?? ""}>
+              <FieldGroup><Field><FieldLabel htmlFor="seed">Seed artist</FieldLabel>
+                <NativeSelect id="seed" name="seed" required defaultValue={seed?.id ?? ""}>
                   <option value="" disabled>Choose a Saved Artist</option>
                   {saved.map((item) => (
                     <option key={item.id} value={item.id}>
                       {item.name}{item.disambiguation ? ` · ${item.disambiguation}` : ""}
                     </option>
                   ))}
-                </select>
-              </label>
-              <button>Find related artists</button>
+                </NativeSelect>
+              </Field></FieldGroup>
+              <Button type="submit" size="lg">Find related artists</Button>
             </form>
           ) : (
             <><p>Save an artist to find related artists.</p><Link href="/search/artists">Search artists</Link></>

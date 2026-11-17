@@ -1,4 +1,7 @@
 "use client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 
 import { useState, type FormEvent } from "react";
 import { authClient } from "../lib/auth-client";
@@ -51,36 +54,27 @@ export function AuthForm({ creatingAccount = false }: { creatingAccount?: boolea
 
   return (
     <form className="auth-form" method="post" onSubmit={submit}>
-      {creatingAccount && (
-        <label>
-          Name
-          <input name="name" autoComplete="name" required />
-        </label>
-      )}
-      <label>
-        Email
-        <input name="email" type="email" autoComplete="username" required />
-      </label>
-      <div>
-        <label>
-          Password
-          <input
-            name="password"
-            type="password"
+      <FieldGroup>
+        {creatingAccount && <Field>
+          <FieldLabel htmlFor="name">Name</FieldLabel>
+          <Input id="name" name="name" autoComplete="name" required />
+        </Field>}
+        <Field>
+          <FieldLabel htmlFor="email">Email</FieldLabel>
+          <Input id="email" name="email" type="email" autoComplete="username" required />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="password">Password</FieldLabel>
+          <Input id="password" name="password" type="password"
             autoComplete={creatingAccount ? "new-password" : "current-password"}
-            minLength={creatingAccount ? 8 : undefined}
-            maxLength={128}
-            aria-describedby={creatingAccount ? "password-hint" : undefined}
-            required
-          />
-        </label>
-        {creatingAccount && (
-          <p className="field-hint" id="password-hint">Use at least 8 characters.</p>
-        )}
-      </div>
-      <button disabled={pending}>
+            minLength={creatingAccount ? 8 : undefined} maxLength={128}
+            aria-describedby={creatingAccount ? "password-hint" : undefined} required />
+          {creatingAccount && <p className="field-hint" id="password-hint">Use at least 8 characters.</p>}
+        </Field>
+      </FieldGroup>
+      <Button type="submit" size="lg" disabled={pending}>
         {pending ? (creatingAccount ? "Creating account…" : "Signing in…") : submitLabel}
-      </button>
+      </Button>
       {error && <p role="alert">{error}</p>}
     </form>
   );

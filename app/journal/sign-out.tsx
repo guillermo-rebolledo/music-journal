@@ -1,4 +1,5 @@
 "use client";
+import { Button } from "@/components/ui/button";
 
 import { useActionState } from "react";
 import { authClient } from "../../lib/auth-client";
@@ -20,9 +21,9 @@ export function SignOut() {
 
   return (
     <form action={signOut}>
-      <button className="sign-out" disabled={pending}>
+      <Button type="submit" variant="ghost" disabled={pending}>
         {pending ? "Signing out…" : "Sign out"}
-      </button>
+      </Button>
       {error && <p role="alert">{error}</p>}
     </form>
   );
