@@ -95,3 +95,18 @@ Discover offers a handpicked shelf before a listener saves any artists. The
 local Catalog, so the shelf and its album details work during provider outages.
 Albums leave the shelf when the listener saves or logs them. Removing an
 unlogged album from Want to Listen makes it eligible again.
+
+Choose a seed from Saved Artists to see up to three related artists from
+ListenBrainz Radio. Discover ranks the first eight ListenBrainz release groups
+and checks them against MusicBrainz. It falls back to one MusicBrainz discography
+page of up to twelve release groups. Both paths require a primary type of Album,
+exclude compilations, and require a known first release date no later than today
+(UTC) at its available precision. Review the album details to save or log it.
+
+Provider requests use public MusicBrainz IDs. The app filters Want to Listen and
+logged albums after fetching public catalog candidates. Both providers use the
+shared Postgres request controls described above, with independent limits and
+a minimum one-second gap for each. ListenBrainz success responses are cached for
+one day and honor the rate-limit reset headers. Set `LISTENBRAINZ_BASE_URL` to
+use a trusted compatible endpoint (default `https://api.listenbrainz.org`).
+The browser suite uses the stub for both providers.

@@ -1,15 +1,14 @@
 import "server-only";
 import { eq } from "drizzle-orm";
-import { db, pool } from "./db";
+import { db } from "./db";
+import { isListenDate } from "./listen-date";
+import { CatalogError, requestProvider, type Failure } from "./provider";
 import { album, artist } from "./schema";
 
+export { CatalogError } from "./provider";
 export type Album = typeof album.$inferSelect;
 export type Artist = typeof artist.$inferSelect;
-type Failure = "timeout" | "rate-limit" | "upstream" | "missing";
-type Result<T> = { items: T[]; error?: never } | { error: Failure; retryAfter?: number; items?: never };
-export class CatalogError extends Error {
-  constructor(public kind: Failure, public retryAfter = 5) { super(kind); }
-}
+
 export const catalogMessages: Record<Failure, string> = {
   timeout: "The catalog took too long to respond. Please try again.",
   "rate-limit": "The catalog is busy. Please wait a moment and try again.",
@@ -38,85 +37,51 @@ function parseArtist(value: unknown): Artist | null {
   return { id: item.id.toLowerCase(), name: item.name, disambiguation: typeof item.disambiguation === "string" && item.disambiguation.trim() ? item.disambiguation : null };
 }
 
-async function request<T extends Album | Artist>(path: string, search: boolean, collection: string, parse: (value: unknown) => T | null): Promise<T[]> {
-  // Version the cache shape so album entries from earlier deployments cannot be misread.
-  const cacheKey = `v2:${path}`;
-  if (pool.waitingCount >= 8) throw new CatalogError("rate-limit");
-  const client = await pool.connect();
-  let result: Result<T>;
-  try {
-    await client.query("BEGIN");
-    await client.query("SET LOCAL lock_timeout = '5s'");
-    // One shared lock coalesces cache misses and limits provider concurrency across instances.
-    await client.query("SELECT pg_advisory_xact_lock(731901)");
-    const cached = await client.query("SELECT value FROM catalog_cache WHERE key = $1 AND expires_at > clock_timestamp()", [cacheKey]);
-    if (cached.rowCount) {
-      result = cached.rows[0].value as Result<T>;
-    } else {
-      const limit = await client.query("SELECT EXTRACT(EPOCH FROM (next_request_at - clock_timestamp())) * 1000 AS wait FROM provider_limit WHERE provider = 'musicbrainz'");
-      const wait = Number(limit.rows[0]?.wait ?? 0);
-      if (wait > 1100) {
-        result = { error: "rate-limit", retryAfter: Math.ceil(wait / 1000) };
-      } else {
-        if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
-        let retryAfter = 1;
-        try {
-          const response = await fetch(`${process.env.MUSICBRAINZ_BASE_URL || "https://musicbrainz.org/ws/2"}/${path}`, {
-            headers: { "User-Agent": "MusicJournal/0.1 (https://github.com/guillermo-rebolledo/music-journal)", Accept: "application/json" },
-            signal: AbortSignal.timeout(4000), cache: "no-store", redirect: "error",
-          });
-          if (response.status === 429 || response.status === 503) {
-            const retry = response.headers.get("retry-after");
-            retryAfter = Math.max(5, retry && /^\d+$/.test(retry) ? Number(retry) : retry ? Math.ceil((Date.parse(retry) - Date.now()) / 1000) || 5 : 5);
-            result = { error: "rate-limit", retryAfter };
-            await response.body?.cancel();
-          } else if (response.status === 404) {
-            result = { error: "missing" };
-            await response.body?.cancel();
-          } else if (!response.ok) {
-            result = { error: "upstream" };
-            await response.body?.cancel();
-          } else {
-            const reader = response.body?.getReader();
-            if (!reader) throw new Error("Missing response body");
-            const chunks: Uint8Array[] = [];
-            let size = 0;
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-              size += value.byteLength;
-              if (size > 1_000_000) { await reader.cancel(); throw new Error("Oversized catalog response"); }
-              chunks.push(value);
-            }
-            const data = JSON.parse(Buffer.concat(chunks).toString("utf8"));
-            if (search && !Array.isArray(data[collection])) throw new Error("Invalid search response");
-            const groups: unknown[] = search ? data[collection] : [data];
-            const items = groups.map(parse).filter((item): item is T => item !== null);
-            result = !search && !items.length ? { error: "missing" } : { items: [...new Map(items.map((item) => [item.id, item])).values()].slice(0, 20) };
-          }
-        } catch (error) {
-          result = { error: error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name) ? "timeout" : "upstream" };
-        }
-        await client.query("INSERT INTO provider_limit VALUES ('musicbrainz', clock_timestamp() + $1 * interval '1 second') ON CONFLICT (provider) DO UPDATE SET next_request_at = EXCLUDED.next_request_at", [retryAfter]);
-        await client.query("DELETE FROM catalog_cache WHERE expires_at < clock_timestamp()");
-        await client.query("INSERT INTO catalog_cache VALUES ($1, $2, clock_timestamp() + $3 * interval '1 second') ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, expires_at = EXCLUDED.expires_at", [cacheKey, JSON.stringify(result), result.error ? 3 : search ? 900 : 86400]);
-      }
-    }
-    await client.query("COMMIT");
-  } catch (error) {
-    await client.query("ROLLBACK");
-    if ((error as { code?: string }).code === "55P03") throw new CatalogError("rate-limit");
-    throw error;
-  } finally { client.release(); }
-  if (result.error) throw new CatalogError(result.error, result.retryAfter);
-  return result.items!;
+function request<T extends { id: string }>(path: string, collection: "release-groups" | "artists" | null, parse: (value: unknown) => T | null): Promise<T[]> {
+  return requestProvider("musicbrainz", path, collection ? 900 : 86400, (data) => {
+    const entries = collection && data && typeof data === "object" && collection in data
+      ? (data as Record<string, unknown>)[collection]
+      : collection ? null : [data];
+    if (!Array.isArray(entries)) throw new CatalogError("upstream");
+    const items = entries.map(parse).filter((item): item is T => item !== null);
+    if (!collection && !items.length) throw new CatalogError("missing");
+    return [...new Map(items.map((item) => [item.id, item])).values()].slice(0, 20);
+  });
+}
+
+function parseReleasedAlbum(value: unknown) {
+  const album = parseAlbum(value);
+  if (!album) return null;
+  const group = value as Record<string, unknown>;
+  const date = group["first-release-date"];
+  const secondaryTypes = group["secondary-types"];
+  if (Array.isArray(secondaryTypes) && secondaryTypes.includes("Compilation")) return null;
+  if (typeof date !== "string" || !/^\d{4}(?:-\d{2}){0,2}$/.test(date)) return null;
+  const releaseDate = `${date}-01-01`.slice(0, 10);
+  if (!isListenDate(releaseDate, "9999-12-31")) return null;
+  return { ...album, releaseDate };
+}
+
+export function rankedAlbums(artistId: string, ids: string[]) {
+  const query = `arid:${artistId} AND rgid:(${ids.join(" OR ")}) AND primarytype:album`;
+  const params = new URLSearchParams({ query, fmt: "json", limit: String(ids.length) });
+  return request(`release-group/?${params}`, "release-groups", parseReleasedAlbum);
+}
+
+export function artistDiscography(artistId: string) {
+  const params = new URLSearchParams({
+    artist: artistId, type: "album", "release-group-status": "website-default",
+    inc: "artist-credits", fmt: "json", limit: "12",
+  });
+  // shortcut: browse one small page, paginate if listeners frequently run out of suggestions.
+  return request(`release-group?${params}`, "release-groups", parseReleasedAlbum);
 }
 
 export async function searchAlbums(title: string) {
   const normalized = title.trim().replace(/\s+/g, " ");
   if (!normalized || normalized.length > 200) return [];
   const escaped = normalized.replace(/[+\-!(){}\[\]^"~*?:\\/&|]/g, "\\$&");
-  return request(`release-group/?${new URLSearchParams({ query: `releasegroup:"${escaped}" AND primarytype:album`, fmt: "json", limit: "20" })}`, true, "release-groups", parseAlbum);
+  return request(`release-group/?${new URLSearchParams({ query: `releasegroup:"${escaped}" AND primarytype:album`, fmt: "json", limit: "20" })}`, "release-groups", parseAlbum);
 }
 
 export async function findAlbum(id: string): Promise<Album> {
@@ -124,7 +89,7 @@ export async function findAlbum(id: string): Promise<Album> {
   id = id.toLowerCase();
   const [local] = await db.select().from(album).where(eq(album.id, id));
   if (local) return local;
-  const [found] = await request(`release-group/${id}?inc=artist-credits&fmt=json`, false, "release-groups", parseAlbum);
+  const [found] = await request(`release-group/${id}?inc=artist-credits&fmt=json`, null, parseAlbum);
   if (!found || found.id !== id) throw new CatalogError("missing");
   return found;
 }
@@ -133,7 +98,7 @@ export async function searchArtists(name: string) {
   const normalized = name.trim().replace(/\s+/g, " ");
   if (!normalized || normalized.length > 200) return [];
   const escaped = normalized.replace(/[+\-!(){}\[\]^"~*?:\\/&|]/g, "\\$&");
-  return request(`artist/?${new URLSearchParams({ query: `artist:"${escaped}"`, fmt: "json", limit: "20" })}`, true, "artists", parseArtist);
+  return request(`artist/?${new URLSearchParams({ query: `artist:"${escaped}"`, fmt: "json", limit: "20" })}`, "artists", parseArtist);
 }
 
 export async function findArtist(id: string): Promise<Artist> {
@@ -141,7 +106,7 @@ export async function findArtist(id: string): Promise<Artist> {
   id = id.toLowerCase();
   const [local] = await db.select().from(artist).where(eq(artist.id, id));
   if (local) return local;
-  const [found] = await request(`artist/${id}?fmt=json`, false, "artists", parseArtist);
+  const [found] = await request(`artist/${id}?fmt=json`, null, parseArtist);
   if (!found || found.id !== id) throw new CatalogError("missing");
   return found;
 }
