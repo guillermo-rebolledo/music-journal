@@ -37,6 +37,7 @@ export async function logListen(previous: ListenState, form: FormData): Promise<
     return fail(error instanceof CatalogError ? catalogMessages[error.kind] : "Your listen could not be logged. Please try again.");
   }
   revalidatePath("/journal");
+  revalidatePath("/discover");
   revalidatePath(`/albums/${albumId}`);
   return { error: null, submissionKey: randomUUID(), success: true };
 }
@@ -62,6 +63,7 @@ export async function setWantToListen(_previous: string | null, form: FormData):
     return error instanceof CatalogError ? catalogMessages[error.kind] : "Your list could not be updated. Please try again.";
   }
   revalidatePath("/journal");
+  revalidatePath("/discover");
   revalidatePath(`/albums/${albumId}`);
   return null;
 }

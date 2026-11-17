@@ -87,3 +87,11 @@ album searches will refill under the same provider rate limit. Browser tests
 cover ambiguous names, optional disambiguation, identity validation, concurrent
 and repeated saves, cross-session persistence, account isolation, provider
 failures, shared rate limits, and phone keyboard operation.
+
+## Discover
+
+Discover offers a handpicked shelf before a listener saves any artists. The
+`0004_handpicked-shelf` migration adds three MusicBrainz release groups to the
+local Catalog, so the shelf and its album details work during provider outages.
+Albums leave the shelf when the listener saves or logs them. Removing an
+unlogged album from Want to Listen makes it eligible again.

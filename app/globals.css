@@ -34,6 +34,19 @@ header, main {
   border-bottom: 1px solid var(--line);
 }
 
+.site-nav {
+  display: flex;
+  gap: 1rem;
+}
+
+.site-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+}
+
+.site-nav a[aria-current="page"] { font-weight: 700; }
+
 .wordmark {
   font-family: Georgia, serif;
   font-size: 1.375rem;

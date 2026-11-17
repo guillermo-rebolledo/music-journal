@@ -29,6 +29,13 @@
       "when": 1794948497081,
       "tag": "0003_saved-artists",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794949825889,
+      "tag": "0004_handpicked-shelf",
+      "breakpoints": true
     }
   ]
 }
