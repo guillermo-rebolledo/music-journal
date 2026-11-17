@@ -89,6 +89,10 @@ test.describe("phone", () => {
     await expect(page.getByRole("heading", { name: "Journal", exact: true })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
     await page.keyboard.press("Tab");
+    await expect(page.getByRole("link", { name: "Journal", exact: true })).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("link", { name: "Discover", exact: true })).toBeFocused();
+    await page.keyboard.press("Tab");
     await expect(page.getByRole("button", { name: "Sign out" })).toBeFocused();
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL(/\/sign-in$/);
