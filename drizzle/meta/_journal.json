@@ -22,6 +22,13 @@
       "when": 1794947629441,
       "tag": "0002_dated-listens",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794948497081,
+      "tag": "0003_saved-artists",
+      "breakpoints": true
     }
   ]
 }

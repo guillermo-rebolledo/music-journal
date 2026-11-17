@@ -1,11 +1,12 @@
 import "server-only";
 import { eq } from "drizzle-orm";
 import { db, pool } from "./db";
-import { album } from "./schema";
+import { album, artist } from "./schema";
 
 export type Album = typeof album.$inferSelect;
+export type Artist = typeof artist.$inferSelect;
 type Failure = "timeout" | "rate-limit" | "upstream" | "missing";
-type Result = { albums: Album[]; error?: never } | { error: Failure; retryAfter?: number; albums?: never };
+type Result<T> = { items: T[]; error?: never } | { error: Failure; retryAfter?: number; items?: never };
 export class CatalogError extends Error {
   constructor(public kind: Failure, public retryAfter = 5) { super(kind); }
 }
@@ -30,18 +31,27 @@ function parseAlbum(value: unknown): Album | null {
   return { id: group.id.toLowerCase(), title: group.title, creditedArtist: creditedArtist || "Unknown artist", originalYear: typeof date === "string" && /^\d{4}(?:-|$)/.test(date) ? Number(date.slice(0, 4)) : null, coverReference: null };
 }
 
-async function request(path: string, search: boolean): Promise<Album[]> {
+function parseArtist(value: unknown): Artist | null {
+  if (!value || typeof value !== "object") return null;
+  const item = value as Record<string, unknown>;
+  if (typeof item.id !== "string" || !isAlbumId(item.id) || typeof item.name !== "string" || !item.name.trim()) return null;
+  return { id: item.id.toLowerCase(), name: item.name, disambiguation: typeof item.disambiguation === "string" && item.disambiguation.trim() ? item.disambiguation : null };
+}
+
+async function request<T extends Album | Artist>(path: string, search: boolean, collection: string, parse: (value: unknown) => T | null): Promise<T[]> {
+  // Version the cache shape so album entries from earlier deployments cannot be misread.
+  const cacheKey = `v2:${path}`;
   if (pool.waitingCount >= 8) throw new CatalogError("rate-limit");
   const client = await pool.connect();
-  let result: Result;
+  let result: Result<T>;
   try {
     await client.query("BEGIN");
     await client.query("SET LOCAL lock_timeout = '5s'");
     // One shared lock coalesces cache misses and limits provider concurrency across instances.
     await client.query("SELECT pg_advisory_xact_lock(731901)");
-    const cached = await client.query("SELECT value FROM catalog_cache WHERE key = $1 AND expires_at > clock_timestamp()", [path]);
+    const cached = await client.query("SELECT value FROM catalog_cache WHERE key = $1 AND expires_at > clock_timestamp()", [cacheKey]);
     if (cached.rowCount) {
-      result = cached.rows[0].value as Result;
+      result = cached.rows[0].value as Result<T>;
     } else {
       const limit = await client.query("SELECT EXTRACT(EPOCH FROM (next_request_at - clock_timestamp())) * 1000 AS wait FROM provider_limit WHERE provider = 'musicbrainz'");
       const wait = Number(limit.rows[0]?.wait ?? 0);
@@ -79,17 +89,17 @@ async function request(path: string, search: boolean): Promise<Album[]> {
               chunks.push(value);
             }
             const data = JSON.parse(Buffer.concat(chunks).toString("utf8"));
-            if (search && !Array.isArray(data["release-groups"])) throw new Error("Invalid search response");
-            const groups: unknown[] = search ? data["release-groups"] : [data];
-            const albums = groups.map(parseAlbum).filter((item): item is Album => item !== null);
-            result = !search && !albums.length ? { error: "missing" } : { albums: [...new Map(albums.map((item) => [item.id, item])).values()].slice(0, 20) };
+            if (search && !Array.isArray(data[collection])) throw new Error("Invalid search response");
+            const groups: unknown[] = search ? data[collection] : [data];
+            const items = groups.map(parse).filter((item): item is T => item !== null);
+            result = !search && !items.length ? { error: "missing" } : { items: [...new Map(items.map((item) => [item.id, item])).values()].slice(0, 20) };
           }
         } catch (error) {
           result = { error: error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name) ? "timeout" : "upstream" };
         }
         await client.query("INSERT INTO provider_limit VALUES ('musicbrainz', clock_timestamp() + $1 * interval '1 second') ON CONFLICT (provider) DO UPDATE SET next_request_at = EXCLUDED.next_request_at", [retryAfter]);
         await client.query("DELETE FROM catalog_cache WHERE expires_at < clock_timestamp()");
-        await client.query("INSERT INTO catalog_cache VALUES ($1, $2, clock_timestamp() + $3 * interval '1 second') ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, expires_at = EXCLUDED.expires_at", [path, JSON.stringify(result), result.error ? 3 : search ? 900 : 86400]);
+        await client.query("INSERT INTO catalog_cache VALUES ($1, $2, clock_timestamp() + $3 * interval '1 second') ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, expires_at = EXCLUDED.expires_at", [cacheKey, JSON.stringify(result), result.error ? 3 : search ? 900 : 86400]);
       }
     }
     await client.query("COMMIT");
@@ -99,14 +109,14 @@ async function request(path: string, search: boolean): Promise<Album[]> {
     throw error;
   } finally { client.release(); }
   if (result.error) throw new CatalogError(result.error, result.retryAfter);
-  return result.albums!;
+  return result.items!;
 }
 
 export async function searchAlbums(title: string) {
   const normalized = title.trim().replace(/\s+/g, " ");
   if (!normalized || normalized.length > 200) return [];
   const escaped = normalized.replace(/[+\-!(){}\[\]^"~*?:\\/&|]/g, "\\$&");
-  return request(`release-group/?${new URLSearchParams({ query: `releasegroup:"${escaped}" AND primarytype:album`, fmt: "json", limit: "20" })}`, true);
+  return request(`release-group/?${new URLSearchParams({ query: `releasegroup:"${escaped}" AND primarytype:album`, fmt: "json", limit: "20" })}`, true, "release-groups", parseAlbum);
 }
 
 export async function findAlbum(id: string): Promise<Album> {
@@ -114,7 +124,24 @@ export async function findAlbum(id: string): Promise<Album> {
   id = id.toLowerCase();
   const [local] = await db.select().from(album).where(eq(album.id, id));
   if (local) return local;
-  const [found] = await request(`release-group/${id}?inc=artist-credits&fmt=json`, false);
+  const [found] = await request(`release-group/${id}?inc=artist-credits&fmt=json`, false, "release-groups", parseAlbum);
+  if (!found || found.id !== id) throw new CatalogError("missing");
+  return found;
+}
+
+export async function searchArtists(name: string) {
+  const normalized = name.trim().replace(/\s+/g, " ");
+  if (!normalized || normalized.length > 200) return [];
+  const escaped = normalized.replace(/[+\-!(){}\[\]^"~*?:\\/&|]/g, "\\$&");
+  return request(`artist/?${new URLSearchParams({ query: `artist:"${escaped}"`, fmt: "json", limit: "20" })}`, true, "artists", parseArtist);
+}
+
+export async function findArtist(id: string): Promise<Artist> {
+  if (!isAlbumId(id)) throw new CatalogError("missing");
+  id = id.toLowerCase();
+  const [local] = await db.select().from(artist).where(eq(artist.id, id));
+  if (local) return local;
+  const [found] = await request(`artist/${id}?fmt=json`, false, "artists", parseArtist);
   if (!found || found.id !== id) throw new CatalogError("missing");
   return found;
 }

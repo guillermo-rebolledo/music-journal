@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { desc, eq } from "drizzle-orm";
 import { db } from "../../lib/db";
-import { album, listen, wantToListen } from "../../lib/schema";
+import { album, artist, listen, savedArtist, wantToListen } from "../../lib/schema";
+import { ArtistSummary } from "../artist-summary";
 import { AlbumSummary } from "../album-summary";
 import { redirect } from "next/navigation";
 import { getListener } from "../../lib/auth";
@@ -18,6 +19,8 @@ export default async function JournalPage() {
 
   const queue = await db.select({ album }).from(wantToListen).innerJoin(album, eq(wantToListen.albumId, album.id)).where(eq(wantToListen.listenerId, listener.id)).orderBy(desc(wantToListen.createdAt));
   const listens = await db.select({ album, listen }).from(listen).innerJoin(album, eq(listen.albumId, album.id)).where(eq(listen.listenerId, listener.id)).orderBy(desc(listen.listenDate), desc(listen.createdAt), desc(listen.submissionKey)).limit(50);
+
+  const artists = await db.select({ artist }).from(savedArtist).innerJoin(artist, eq(savedArtist.artistId, artist.id)).where(eq(savedArtist.listenerId, listener.id)).orderBy(desc(savedArtist.createdAt), artist.id);
 
   return (
     <>
@@ -40,7 +43,8 @@ export default async function JournalPage() {
           </section>
           <section aria-labelledby="saved-artists">
             <h2 id="saved-artists">Saved Artists</h2>
-            <p>Keep track of artists you want to explore.</p>
+            <p><Link href="/search/artists">Search artists</Link></p>
+            {artists.length ? <ul className="album-list">{artists.map(({ artist }) => <ArtistSummary key={artist.id} artist={artist} saved />)}</ul> : <p>Keep track of artists you want to explore.</p>}
           </section>
         </div>
       </main>

@@ -1,6 +1,6 @@
 # Music Journal
 
-A private web app for keeping track of album listens, albums you want to listen to, and artists you want to explore. Listeners can search albums, log dated listens on their detail pages, and keep a private Want to Listen list.
+A private web app for keeping track of album listens, albums you want to listen to, and artists you want to explore. Listeners can search albums and artists, log dated listens on album detail pages, and keep private Want to Listen and Saved Artists lists.
 
 ## Run locally
 
@@ -29,7 +29,7 @@ For deployment, set the three environment variables from `.env.example` before b
 
 Listeners create an account with a name, email address, and password. Email and password is the initial method so local development and tests can run without a mail service or identity provider. The email serves as the sign-in identifier. Email verification and password recovery are outside this initial flow. Reuse the same credentials on another device to open the same Journal.
 
-Better Auth stores users, credentials, and sessions in Postgres through Drizzle. The Journal resolves the listener from the validated session on the server. Sign-out revokes the current session. Dated listens and Want to Listen actions use that same server-resolved listener.
+Better Auth stores users, credentials, and sessions in Postgres through Drizzle. The Journal resolves the listener from the validated session on the server. Sign-out revokes the current session. Dated listens, Want to Listen, and Saved Artists actions use that same server-resolved listener.
 
 ## Verify
 
@@ -68,3 +68,22 @@ listen and removing current Want to Listen membership share one transaction.
 Replaying a successful key does neither operation again, preserving later
 re-saves. Failed submissions keep their key for retry. Apply the dated-listens
 migration before serving this version.
+
+## Saved Artists
+
+Use Search artists from the Journal or album search to find MusicBrainz artists
+by name. Results show optional disambiguation so artists with the same name can
+be distinguished. Saving validates the artist MusicBrainz ID against the local
+Catalog or a provider identity lookup and persists its name and disambiguation.
+The unique listener–artist key makes repeated and concurrent saves idempotent.
+Removal only affects the signed-in listener's membership and retains Catalog
+metadata, so the list stays readable, removable, and re-saveable during outages.
+Artist and album lookups share the same provider cache, concurrency lock,
+rate limits, timeout, response bounds, and error handling described above.
+
+Apply `0003_saved-artists` before serving this version. This also versions the
+provider cache keys for the shared album/artist result format; existing cached
+album searches will refill under the same provider rate limit. Browser tests
+cover ambiguous names, optional disambiguation, identity validation, concurrent
+and repeated saves, cross-session persistence, account isolation, provider
+failures, shared rate limits, and phone keyboard operation.
