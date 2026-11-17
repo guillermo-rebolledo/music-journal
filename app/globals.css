@@ -1,0 +1,139 @@
+:root {
+  color-scheme: light;
+  --paper: #f7f4ed;
+  --ink: #241d18;
+  --muted: #62574c;
+  --line: #c4b9a8;
+  --accent: #8d3929;
+  --surface: #fffdf8;
+  font-family: system-ui, sans-serif;
+  color: var(--ink);
+  background: var(--paper);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  line-height: 1.55;
+}
+
+header, main {
+  width: min(100% - 2rem, 54rem);
+  margin-inline: auto;
+}
+
+.site-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  min-height: 4.75rem;
+  padding-block: .75rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.wordmark {
+  font-family: Georgia, serif;
+  font-size: 1.375rem;
+  font-weight: bold;
+}
+
+main { padding-block: clamp(2rem, 7vw, 5rem); }
+
+.auth-page { max-width: 26rem; }
+
+h1, h2 {
+  font-family: Georgia, serif;
+  line-height: 1.15;
+  margin: 0;
+  font-weight: 400;
+}
+
+h1 { font-size: clamp(2.5rem, 9vw, 4.5rem); }
+h2 { font-size: 1.625rem; }
+
+p { margin: .5rem 0 0; }
+
+.auth-form {
+  display: grid;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.auth-form label {
+  display: grid;
+  gap: .35rem;
+  font-weight: 600;
+}
+
+input, button {
+  font: inherit;
+  min-height: 2.75rem;
+  border: 1px solid var(--line);
+  border-radius: .35rem;
+  padding: .5rem .75rem;
+}
+
+input {
+  width: 100%;
+  min-width: 0;
+  border-color: #92816c;
+  background: var(--surface);
+  color: inherit;
+}
+
+button {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--surface);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+button:disabled { cursor: wait; }
+
+.sign-out {
+  background: transparent;
+  color: var(--accent);
+}
+
+a, [role="alert"] { color: var(--accent); }
+
+a:focus-visible, button:focus-visible, input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.auth-switch {
+  margin-top: 1rem;
+  color: var(--muted);
+}
+
+.field-hint {
+  color: var(--muted);
+  font-size: .875rem;
+  margin-top: .35rem;
+}
+
+.listener {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.journal-sections {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: .75rem;
+  margin-top: 2rem;
+}
+
+.journal-sections section {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: .35rem;
+  padding: 1.25rem;
+}
+
+.journal-sections p { color: var(--muted); }
