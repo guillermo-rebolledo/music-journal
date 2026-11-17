@@ -1,3 +1,8 @@
+import Link from "next/link";
+import { desc, eq } from "drizzle-orm";
+import { db } from "../../lib/db";
+import { album, wantToListen } from "../../lib/schema";
+import { AlbumSummary } from "../album-summary";
 import { redirect } from "next/navigation";
 import { getListener } from "../../lib/auth";
 import { SignOut } from "./sign-out";
@@ -11,6 +16,8 @@ export default async function JournalPage() {
     redirect("/sign-in");
   }
 
+  const queue = await db.select({ album }).from(wantToListen).innerJoin(album, eq(wantToListen.albumId, album.id)).where(eq(wantToListen.listenerId, listener.id)).orderBy(desc(wantToListen.createdAt));
+
   return (
     <>
       <header className="site-header">
@@ -20,6 +27,7 @@ export default async function JournalPage() {
       <main>
         <h1>Journal</h1>
         <p className="listener"><strong>{listener.name}</strong> · {listener.email}</p>
+        <p><Link href="/search">Search albums</Link></p>
         <div className="journal-sections">
           <section aria-labelledby="recent-listens">
             <h2 id="recent-listens">Recent listens</h2>
@@ -27,7 +35,7 @@ export default async function JournalPage() {
           </section>
           <section aria-labelledby="want-to-listen">
             <h2 id="want-to-listen">Want to Listen</h2>
-            <p>Keep track of albums you want to hear.</p>
+            {queue.length ? <ul className="album-list">{queue.map(({ album }) => <AlbumSummary key={album.id} album={album} />)}</ul> : <p>Keep track of albums you want to hear.</p>}
           </section>
           <section aria-labelledby="saved-artists">
             <h2 id="saved-artists">Saved Artists</h2>

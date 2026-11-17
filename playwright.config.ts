@@ -9,10 +9,15 @@ if (!databaseURL || new URL(databaseURL).pathname !== "/music_journal_test") {
 
 export default defineConfig({
   testDir: "./tests",
+  workers: 1,
+  timeout: 45000,
   use: { ...devices["Desktop Chrome"], baseURL },
-  webServer: {
+  webServer: [{
+    command: "node tests/provider-stub.mjs",
+    url: "http://127.0.0.1:3101/health",
+  }, {
     command: "npm run dev -- --hostname 127.0.0.1 --port 3100",
     url: `${baseURL}/sign-in`,
-    env: { BETTER_AUTH_URL: baseURL },
-  },
+    env: { BETTER_AUTH_URL: baseURL, MUSICBRAINZ_BASE_URL: "http://127.0.0.1:3101" },
+  }],
 });
