@@ -15,6 +15,13 @@
       "when": 1794947077146,
       "tag": "0001_album-catalog",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794947629441,
+      "tag": "0002_dated-listens",
+      "breakpoints": true
     }
   ]
 }

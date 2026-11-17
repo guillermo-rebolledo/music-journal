@@ -4,6 +4,7 @@ const groups = [
   { id: ids[0], title: "Shared title", "primary-type": "Album", "artist-credit": [{ name: "First Artist", joinphrase: " & " }, { name: "Guest" }], "first-release-date": "1998-05-01" },
   { id: ids[1], title: "Shared title", "primary-type": "Album", "artist-credit": [{ name: "Second Artist" }], "first-release-date": "2005" },
   { id: ids[2], title: "Sparse album", "primary-type": "Album" },
+  { id: "55555555-5555-4555-8555-555555555555", title: "Direct album", "primary-type": "Album", "artist-credit": [{ name: "Direct Artist" }], "first-release-date": "2012" },
 ];
 let outage = false;
 let requests = [];

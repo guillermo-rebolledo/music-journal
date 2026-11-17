@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { desc, eq } from "drizzle-orm";
 import { db } from "../../lib/db";
-import { album, wantToListen } from "../../lib/schema";
+import { album, listen, wantToListen } from "../../lib/schema";
 import { AlbumSummary } from "../album-summary";
 import { redirect } from "next/navigation";
 import { getListener } from "../../lib/auth";
@@ -17,6 +17,7 @@ export default async function JournalPage() {
   }
 
   const queue = await db.select({ album }).from(wantToListen).innerJoin(album, eq(wantToListen.albumId, album.id)).where(eq(wantToListen.listenerId, listener.id)).orderBy(desc(wantToListen.createdAt));
+  const listens = await db.select({ album, listen }).from(listen).innerJoin(album, eq(listen.albumId, album.id)).where(eq(listen.listenerId, listener.id)).orderBy(desc(listen.listenDate), desc(listen.createdAt), desc(listen.submissionKey)).limit(50);
 
   return (
     <>
@@ -31,7 +32,7 @@ export default async function JournalPage() {
         <div className="journal-sections">
           <section aria-labelledby="recent-listens">
             <h2 id="recent-listens">Recent listens</h2>
-            <p>Albums you log will appear here by listen date.</p>
+            {listens.length ? <ul className="album-list">{listens.map(({ album, listen }) => <AlbumSummary key={listen.submissionKey} album={album} listenDate={listen.listenDate} />)}</ul> : <p>Albums you log will appear here by listen date.</p>}
           </section>
           <section aria-labelledby="want-to-listen">
             <h2 id="want-to-listen">Want to Listen</h2>
