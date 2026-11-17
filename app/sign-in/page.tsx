@@ -15,7 +15,7 @@ export default async function SignInPage() {
       <header className="site-header">
         <span className="wordmark">Music Journal</span>
       </header>
-      <main className="auth-page">
+      <main id="main-content" tabIndex={-1} className="auth-page">
         <h1>Sign in</h1>
         <p>Open your private Journal.</p>
         <AuthForm />

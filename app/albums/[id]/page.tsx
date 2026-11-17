@@ -20,11 +20,11 @@ export default async function AlbumPage({ params }: { params: Promise<{ id: stri
   try { album = await findAlbum(id); }
   catch (error) {
     if (!(error instanceof CatalogError)) throw error;
-    return <main><Link href="/journal">Back to Journal</Link><h1>Album unavailable</h1><p role="alert">{catalogMessages[error.kind]}</p><a href={`/albums/${encodeURIComponent(id)}`}>Retry album</a><p><Link href="/search">Search albums</Link></p></main>;
+    return <main id="main-content" tabIndex={-1}><Link href="/journal">Back to Journal</Link><h1>Album unavailable</h1><p role="alert">{catalogMessages[error.kind]}</p><a href={`/albums/${encodeURIComponent(id)}`}>Retry album</a><p><Link href="/search">Search albums</Link></p></main>;
   }
   const [saved] = await db.select().from(wantToListen).where(and(eq(wantToListen.listenerId, listener.id), eq(wantToListen.albumId, album.id)));
   const listens = await db.select().from(listen).where(and(eq(listen.listenerId, listener.id), eq(listen.albumId, album.id))).orderBy(desc(listen.listenDate), desc(listen.createdAt), desc(listen.submissionKey));
-  return <main>
+  return <main id="main-content" tabIndex={-1}>
     <Link href="/journal">Back to Journal</Link>
     <h1>{album.title}</h1>
     <p>{album.creditedArtist} · {album.originalYear ?? "Year unknown"}</p>

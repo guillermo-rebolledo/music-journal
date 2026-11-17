@@ -2,6 +2,10 @@
 
 A private web app for keeping track of album listens, albums you want to listen to, and artists you want to explore. Listeners can search albums and artists, log dated listens on album detail pages, and keep private Want to Listen and Saved Artists lists.
 
+## Design system
+
+All UI follows [the Music Journal design system](DESIGN.md). Read it before adding or changing components, styles or screens. Shared primitives live in `components/ui/`; fonts and licenses are self-hosted in `public/fonts/`; tokens and both themes live in `app/globals.css`.
+
 ## Run locally
 
 Use Node.js 22.9 or newer and a dedicated Postgres database. With Docker, start a local database and install dependencies.
@@ -24,6 +28,15 @@ npm run dev
 ```
 
 For deployment, set the three environment variables from `.env.example` before building, use an HTTPS app URL and a dedicated database, and apply committed migrations before serving traffic.
+
+## Vercel previews
+
+Vercel Preview has separate environment-variable scopes from Production and Development. The build validates `DATABASE_URL`, `BETTER_AUTH_URL` and `BETTER_AUTH_SECRET`; configure them before deploying a PR.
+
+- Connect the Neon database to Preview and enable **Create database branch for deployment → Preview**. Each deployment must receive an isolated branch connection, rather than the production connection string. See [Neon's preview-branching setup](https://neon.com/docs/guides/vercel-managed-integration#enable-automated-preview-branching-recommended).
+- Generate a separate `BETTER_AUTH_SECRET` for Preview (at least 32 characters), stored as sensitive. Keep the Production secret scoped to Production.
+- Set `BETTER_AUTH_URL` to the preview's HTTPS branch alias, scoped to that Git branch. Use that alias to test authentication.
+- Apply committed migrations to the preview database if its schema is behind. Redeploy after changing environment scopes; existing deployments retain their original environment.
 
 ## Sign-in
 

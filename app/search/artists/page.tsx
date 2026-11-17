@@ -1,3 +1,6 @@
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
@@ -21,14 +24,13 @@ export default async function ArtistSearchPage({ searchParams }: { searchParams:
     catch (cause) { if (!(cause instanceof CatalogError)) throw cause; error = cause.kind === "missing" ? "This artist could not be found in the catalog." : catalogMessages[cause.kind]; }
   }
   const saved = new Set((await db.select({ id: savedArtist.artistId }).from(savedArtist).where(eq(savedArtist.listenerId, listener.id))).map((row) => row.id));
-  return <main>
+  return <main id="main-content" tabIndex={-1}>
     <Link href="/journal">Back to Journal</Link>
     <p><Link href="/search">Search albums</Link></p>
     <h1>Search artists</h1>
     <form action="/search/artists" className="auth-form" role="search">
-      <label htmlFor="artist-name">Artist name</label>
-      <input id="artist-name" name="q" defaultValue={q} maxLength={200} required />
-      <button type="submit">Search</button>
+      <FieldGroup><Field><FieldLabel htmlFor="artist-name">Artist name</FieldLabel><Input id="artist-name" name="q" defaultValue={q} maxLength={200} required /></Field></FieldGroup>
+      <Button type="submit" size="lg">Search</Button>
     </form>
     {error ? <div role="alert"><p>{error}</p><a href={`/search/artists?${new URLSearchParams({ q })}`}>Retry search</a></div> : q ? <>
       <h2 className="results-heading">Artists matching “{q}”</h2>

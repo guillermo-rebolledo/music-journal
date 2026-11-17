@@ -1,167 +1,332 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --font-sans: "Allo", system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
+  --radius-sm: calc(var(--radius) * .6);
+  --radius-md: calc(var(--radius) * .8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+}
+
+/* Music Journal — generated from tokens.json */
+:root, [data-theme="light"] {
+  --background: #ffffff; /* Page background: white in light, black in dark. `bg-background`. */
+  --foreground: #0a0a0a; /* Default text on background, card and popover (19:1); also the text on orange. */
+  --card: #ffffff; /* Card fill. In light it matches the page; the card's ring and small shadow separate it. */
+  --card-foreground: #0a0a0a; /* Text on card. */
+  --popover: #ffffff; /* Fill of floating layers: Select popup and Dialog. */
+  --popover-foreground: #0a0a0a; /* Text on popover. */
+  --primary: #ff5a00; /* Signal orange, the one brand colour. A FILL only: primary buttons, checked Checkbox and Switch, the underline under links, focus ring, small accents. Never orange text on white (3.1:1). */
+  --primary-foreground: #0a0a0a; /* Text and icons on orange: always black (6.3:1), never white. */
+  --secondary: #f4f4f4; /* Secondary button fill and quiet chips (light grey). */
+  --secondary-foreground: #0a0a0a; /* Text on secondary. */
+  --muted: #f4f4f4; /* Subdued fills: Tabs list, Avatar fallback, skeleton areas. */
+  --muted-foreground: #6b6b6b; /* Secondary text: descriptions, hints, metadata, placeholders (5.3:1 on background, 4.9:1 on muted). */
+  --accent: #f4f4f4; /* Hover and highlighted fill: ghost/outline button hover, highlighted Select item. Not a brand colour. */
+  --accent-foreground: #0a0a0a; /* Text on accent. */
+  --destructive: #c81e1e; /* Errors and destructive actions only: a deep red, far darker than the orange in light. Text, borders and aria-invalid rings; destructive buttons and badges use a 10% tint with red text (5.7:1 on white). */
+  --border: #e5e5e5; /* Hairline borders and Separator. Decorative: never the only boundary of a control. */
+  --input: #8a8a8a; /* Boundary of Input, Textarea, Select trigger, unchecked Checkbox and Switch (3.1:1 or more on every surface). */
+  --ring: #ff5a00; /* Focus ring, drawn at 50% around a solid orange border (3.1:1 on white). */
+}
+.dark {
+  --background: #0a0a0a;
+  --foreground: #fafafa;
+  --card: #171717;
+  --card-foreground: #fafafa;
+  --popover: #171717;
+  --popover-foreground: #fafafa;
+  --secondary: #262626;
+  --secondary-foreground: #fafafa;
+  --muted: #262626;
+  --muted-foreground: #a3a3a3;
+  --accent: #262626;
+  --accent-foreground: #fafafa;
+  --destructive: #f87171;
+  --border: #262626;
+  --input: #737373;
+}
 :root {
-  color-scheme: light;
-  --paper: #f7f4ed;
-  --ink: #241d18;
-  --muted: #62574c;
-  --line: #c4b9a8;
-  --accent: #8d3929;
-  --surface: #fffdf8;
-  font-family: system-ui, sans-serif;
-  color: var(--ink);
-  background: var(--paper);
+  --spacing: 0.25rem; /* Base unit: every Tailwind spacing utility is a multiple (p-4 = 4 × spacing). */
+  --space-1: 0.25rem; /* Icon-to-label gap inside small controls. */
+  --space-2: 0.5rem; /* Gap inside controls and between label and field (gap-2). */
+  --space-3: 0.75rem; /* Control horizontal padding (px-3). */
+  --space-4: 1rem; /* Stack gap between form fields; Dialog padding. */
+  --space-6: 1.5rem; /* Card padding and gap between card sections (py-6 / px-6). */
+  --space-8: 2rem; /* Between sections on a page. */
+  --space-12: 3rem; /* Page top and bottom padding. */
+  --radius: 0.25rem; /* Base radius. Change this and update the steps with it (sm 0.6×, md 0.8×, xl 1.4×). */
+  --radius-sm: 0.15rem; /* Checkbox, Select items. */
+  --radius-md: 0.2rem; /* Buttons, Input, Textarea, Select trigger and popup, Tooltip, Tabs. */
+  --radius-lg: 0.25rem; /* = the base radius; inner panels and media. */
+  --radius-xl: 0.35rem; /* Card and Dialog. */
+  --radius-2xl: 0.45rem; /* Large surfaces. */
+  --radius-4xl: 0.65rem; /* Badge: still a pill at its 20px height. */
+  --font-sans: "Allo", system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --type-display: 700 3.75rem/1 var(--font-sans); /* Hero and wordmark only. Allo's optical size goes to Display automatically at this size. */
+  --type-h1: 700 2.25rem/2.5rem var(--font-sans); /* Page title (`text-4xl font-bold tracking-tight`). */
+  --type-h2: 600 1.875rem/2.25rem var(--font-sans); /* Section title (`text-3xl font-semibold tracking-tight`). */
+  --type-h3: 600 1.5rem/2rem var(--font-sans); /* Card or group title (`text-2xl font-semibold`). */
+  --type-h4: 600 1.25rem/1.75rem var(--font-sans); /* Small heading (`text-xl font-semibold`). */
+  --type-lead: 400 1.25rem/1.75rem var(--font-sans); /* Intro paragraph under a page title, in muted-foreground. */
+  --type-large: 600 1.125rem/1.75rem var(--font-sans); /* Emphasised line: album title on its detail page. */
+  --type-body: 400 1rem/1.75rem var(--font-sans); /* Running text (`leading-7`). */
+  --type-small: 400 0.875rem/1.25rem var(--font-sans); /* Descriptions and helper text in prose, in muted-foreground. */
+  --type-control: 500 0.75rem/1rem var(--font-mono); /* UPPERCASE. Buttons, Tabs, Labels: every control label (`font-mono text-xs uppercase tracking-wider`). */
+  --type-tag: 500 0.6875rem/1rem var(--font-mono); /* UPPERCASE. Badges, tooltips, Select group labels, small section eyebrows. */
+  --type-meta: 400 0.75rem/1rem var(--font-mono); /* Mixed case, tabular figures. Metadata: Artist · Year, listen dates, counts; Card descriptions. */
+  --type-code: 400 0.875rem/1.25rem var(--font-mono); /* Inline code and IDs. */
 }
-
-* { box-sizing: border-box; }
-
-body {
-  margin: 0;
-  line-height: 1.55;
+.display {
+  font-family: var(--font-sans);
+  font-size: 3.75rem;
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: -0.035em;
 }
-
-header, main {
-  width: min(100% - 2rem, 54rem);
-  margin-inline: auto;
+.h1 {
+  font-family: var(--font-sans);
+  font-size: 2.25rem;
+  line-height: 2.5rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
 }
-
-.site-header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: .75rem;
-  min-height: 4.75rem;
-  padding-block: .75rem;
-  border-bottom: 1px solid var(--line);
+.h2 {
+  font-family: var(--font-sans);
+  font-size: 1.875rem;
+  line-height: 2.25rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
 }
-
-.site-nav {
-  display: flex;
-  gap: 1rem;
+.h3 {
+  font-family: var(--font-sans);
+  font-size: 1.5rem;
+  line-height: 2rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
 }
-
-.site-nav a {
-  display: inline-flex;
-  align-items: center;
-  min-height: 2.75rem;
+.h4 {
+  font-family: var(--font-sans);
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+  font-weight: 600;
+  letter-spacing: 0;
 }
-
-.site-nav a[aria-current="page"] { font-weight: 700; }
-
-.wordmark {
-  font-family: Georgia, serif;
-  font-size: 1.375rem;
-  font-weight: bold;
-}
-
-main { padding-block: clamp(2rem, 7vw, 5rem); }
-
-.auth-page { max-width: 26rem; }
-
-h1, h2 {
-  font-family: Georgia, serif;
-  line-height: 1.15;
-  margin: 0;
+.lead {
+  font-family: var(--font-sans);
+  font-size: 1.25rem;
+  line-height: 1.75rem;
   font-weight: 400;
+  letter-spacing: 0;
 }
-
-h1 { font-size: clamp(2.5rem, 9vw, 4.5rem); }
-h2 { font-size: 1.625rem; }
-
-p { margin: .5rem 0 0; }
-
-.auth-form {
-  display: grid;
-  gap: 1rem;
-  margin-top: 2rem;
-}
-
-.auth-form label {
-  display: grid;
-  gap: .35rem;
+.large {
+  font-family: var(--font-sans);
+  font-size: 1.125rem;
+  line-height: 1.75rem;
   font-weight: 600;
+  letter-spacing: 0;
+}
+.body {
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.75rem;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+.small {
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+.control {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+}
+.tag {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  line-height: 1rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+}
+.meta {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+.code {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+@font-face {
+  font-family: "Allo";
+  src: url("/fonts/AlloVariableFriendly.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
 }
 
-input, select, button {
-  font: inherit;
-  min-height: 2.75rem;
-  border: 1px solid var(--line);
-  border-radius: .35rem;
-  padding: .5rem .75rem;
-}
 
-input, select {
-  width: 100%;
-  min-width: 0;
-  border-color: #92816c;
-  background: var(--surface);
-  color: inherit;
-}
 
-button {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--surface);
-  cursor: pointer;
+@font-face {
+  font-family: "Allo";
+  src: url("/fonts/Allo-Oblique.woff2") format("woff2");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Allo";
+  src: url("/fonts/Allo-MediumOblique.woff2") format("woff2");
+  font-weight: 500;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Allo";
+  src: url("/fonts/Allo-SemiBoldOblique.woff2") format("woff2");
   font-weight: 600;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Allo";
+  src: url("/fonts/Allo-BoldOblique.woff2") format("woff2");
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
 }
 
-button:disabled { cursor: wait; }
 
-.sign-out {
-  background: transparent;
-  color: var(--accent);
+@font-face {
+  font-family: "Geist Mono";
+  src: url("/fonts/GeistMono-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
 }
 
-a, [role="alert"] { color: var(--accent); }
-
-a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+  --background: #0a0a0a;
+  --foreground: #fafafa;
+  --card: #171717;
+  --card-foreground: #fafafa;
+  --popover: #171717;
+  --popover-foreground: #fafafa;
+  --secondary: #262626;
+  --secondary-foreground: #fafafa;
+  --muted: #262626;
+  --muted-foreground: #a3a3a3;
+  --accent: #262626;
+  --accent-foreground: #fafafa;
+  --destructive: #f87171;
+  --border: #262626;
+  --input: #737373;
+  }
 }
 
-.auth-switch {
-  margin-top: 1rem;
-  color: var(--muted);
+@layer base {
+  * { box-sizing: border-box; border-color: var(--border); }
+  :root { color-scheme: light; }
+  :root.dark { color-scheme: dark; }
+  body { margin: 0; background: var(--background); color: var(--foreground); font: var(--type-body); font-optical-sizing: auto; }
+  h1, h2, h3, h4 { margin: 0; text-wrap: balance; overflow-wrap: anywhere; }
+  h1 { font: var(--type-h1); letter-spacing: -.025em; }
+  h2 { font: var(--type-h2); letter-spacing: -.025em; }
+  h3 { font: var(--type-h3); letter-spacing: -.02em; }
+  h4 { font: var(--type-h4); }
+  p { margin: var(--space-2) 0 0; text-wrap: pretty; }
+  a { color: var(--foreground); text-decoration: underline; text-decoration-color: var(--primary); text-decoration-thickness: 2px; text-underline-offset: 4px; }
+  a:hover { text-decoration-thickness: 3px; }
+  a:focus-visible { outline: 3px solid var(--ring); outline-offset: 4px; border-radius: var(--radius-md); }
+  input, select { font-family: var(--font-sans); }
+  time { font: var(--type-meta); font-variant-numeric: tabular-nums; }
+  [role="alert"] { color: var(--destructive); font: var(--type-small); }
+  [role="status"] { color: var(--muted-foreground); font: var(--type-small); }
 }
 
-.field-hint {
-  color: var(--muted);
-  font-size: .875rem;
-  margin-top: .35rem;
+@layer components {
+  .site-header, main { width: min(100% - var(--space-8), 72rem); margin-inline: auto; }
+  main { padding-block: var(--space-12); }
+  .site-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-4); padding-block: var(--space-6); border-bottom: 1px solid var(--border); }
+  .wordmark { font: var(--type-h3); letter-spacing: -.035em; }
+  .wordmark::before { content: ""; display: inline-block; width: var(--space-2); height: var(--space-2); margin-right: var(--space-3); background: var(--primary); }
+  .site-nav { display: flex; flex-wrap: wrap; gap: var(--space-6); }
+  .site-nav a { display: inline-flex; align-items: center; min-height: 2.5rem; font: var(--type-control); letter-spacing: .05em; text-transform: uppercase; text-decoration-color: transparent; }
+  .site-nav a:hover, .site-nav a[aria-current="page"] { text-decoration-color: var(--primary); }
+  .auth-page { max-width: 26rem; }
+  .auth-page > p:first-of-type { font: var(--type-lead); color: var(--muted-foreground); }
+  .auth-form { display: grid; gap: var(--space-4); margin-top: var(--space-8); max-width: 32rem; }
+  [data-slot="button"] { cursor: pointer; white-space: normal; height: auto; min-height: 2.25rem; padding-block: var(--space-2); }
+  [data-slot="button"][data-size="lg"] { min-height: 2.5rem; }
+  [data-slot="button"]:disabled { cursor: wait; }
+  [data-slot="native-select-wrapper"] { width: 100%; }
+  .meta, .album-row p, .listener { font: var(--type-meta); font-variant-numeric: tabular-nums; color: var(--muted-foreground); }
+  .auth-switch, .field-hint { color: var(--muted-foreground); font: var(--type-small); margin-top: var(--space-4); }
+  .listener { overflow-wrap: anywhere; }
+  .journal-sections { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr)); align-items: start; gap: var(--space-6); margin-top: var(--space-8); }
+  .journal-sections section { min-width: 0; }
+  .journal-sections p, .artist-row > p { color: var(--muted-foreground); }
+  .results-heading { margin-top: var(--space-8); }
+  .album-list { list-style: none; margin: 0; padding: 0; }
+  .album-row { display: flex; align-items: center; gap: var(--space-3); padding-block: var(--space-4); border-bottom: 1px solid var(--border); }
+  .album-row > div { min-width: 0; overflow-wrap: anywhere; }
+  .album-row a { font-weight: 600; }
+  .cover-placeholder { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 4rem; min-height: 4rem; padding: var(--space-2); background: var(--muted); border: 1px solid var(--border); border-radius: var(--radius-lg); color: var(--muted-foreground); font: var(--type-tag); letter-spacing: .05em; text-transform: uppercase; }
+  .artist-row { padding-block: var(--space-4); border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
+  .artist-row .auth-form { margin-top: var(--space-3); }
+  .seed-form { margin-block: var(--space-4); max-width: 26rem; }
+  .seed-form button { justify-self: start; }
+  .suggestion-album .album-row { border-bottom: 0; padding-bottom: 0; }
+  .skip-link { position: absolute; left: var(--space-4); top: var(--space-4); padding: var(--space-2); background: var(--background); transform: translateY(-200%); z-index: 10; }
+  .skip-link:focus { transform: none; }
 }
 
-.listener {
-  color: var(--muted);
-  overflow-wrap: anywhere;
+@media (prefers-color-scheme: dark) { :root:not(.light) { color-scheme: dark; } }
+@media (pointer: coarse) {
+  [data-slot="button"], [data-slot="input"], [data-slot="native-select"], .site-nav a { min-height: 2.75rem; }
 }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
 
-.journal-sections {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
-  gap: .75rem;
-  margin-top: 2rem;
+/* The TE layer intentionally overrides the registry's default type utilities. */
+[data-slot="button"], [data-slot="label"], [data-slot="field-label"] {
+  font: var(--type-control);
+  letter-spacing: .05em;
+  text-transform: uppercase;
 }
-
-.journal-sections section {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: .35rem;
-  padding: 1.25rem;
-}
-
-.journal-sections p { color: var(--muted); }
-
-h1 { margin-top: .75rem; overflow-wrap: anywhere; }
-.results-heading { margin-top: 2rem; }
-.album-list { list-style: none; padding: 0; }
-.album-row { display: flex; align-items: center; gap: .75rem; padding-block: 1rem; border-bottom: 1px solid var(--line); }
-.album-row > div { min-width: 0; overflow-wrap: anywhere; }
-.album-row a { font-weight: 600; }
-.cover-placeholder { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 4rem; min-height: 4rem; padding: .5rem; background: var(--paper); border: 1px solid var(--line); color: var(--muted); font-size: .875rem; }
-
-.artist-row { padding-block: 1rem; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
-.artist-row .auth-form { margin-top: .75rem; }
-
-.seed-form { margin-block: 1rem; max-width: 26rem; }
-.seed-form button { justify-self: start; }
-.suggestion-album .album-row { border-bottom: 0; padding-bottom: 0; }
+[data-slot="input"], [data-slot="native-select"] { font: var(--type-body); }
+[data-slot="card-description"] { font: var(--type-meta); font-variant-numeric: tabular-nums; }
