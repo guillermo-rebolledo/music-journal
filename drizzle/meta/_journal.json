@@ -8,6 +8,13 @@
       "when": 1794945805727,
       "tag": "0000_auth",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1794947077146,
+      "tag": "0001_album-catalog",
+      "breakpoints": true
     }
   ]
 }

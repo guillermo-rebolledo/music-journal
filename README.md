@@ -1,6 +1,6 @@
 # Music Journal
 
-A private web app for keeping track of album listens, albums you want to listen to, and artists you want to explore. This first slice opens an empty Journal after sign-in.
+A private web app for keeping track of album listens, albums you want to listen to, and artists you want to explore. Listeners can search albums, open their detail pages, and keep a private Want to Listen list.
 
 ## Run locally
 
@@ -40,3 +40,13 @@ npm test
 ```
 
 The browser suite starts a fresh Postgres container on a Docker-assigned loopback port, applies the committed migrations, and removes the container when the run finishes. It uses port 3100 for its own app server and generates a fresh auth secret. To run one test, use `npm test -- -g "returning listener"`.
+
+## Album catalog and Want to Listen
+
+Search uses MusicBrainz release groups with primary type Album. Common reissues share a release-group detail page. Saving validates that identity against the local Catalog or a MusicBrainz lookup, then persists the title, credited artist, and original year. Want to Listen has a unique listener–album key; actions resolve the listener from the server session. Removal is idempotent and never deletes Catalog metadata.
+
+Apply the new migration before serving this version. Album metadata remains available locally after removal, so existing saved album pages and wishlist actions work during provider outages. Covers use text placeholders; artwork is not enabled pending confirmation of the intended display use.
+
+All app instances must share the same Postgres database. A transaction advisory lock serializes MusicBrainz requests, rechecks a shared cache after acquiring the lock, and coalesces repeated requests. Requests are separated by at least one second after completion, with a four-second upstream timeout, a five-second lock wait, a bounded connection pool/queue, a 1 MB response cap, and at most 20 search results. The provider's Retry-After response blocks further requests across instances. Successful search results are cached for 15 minutes, identity lookups for one day, and errors for three seconds; expired cache entries are pruned on a provider request. Database connection limits remain deployment-specific; tune the app instance count against available Postgres connections.
+
+`MUSICBRAINZ_BASE_URL` can point server-side requests at a trusted MusicBrainz-compatible endpoint (default: `https://musicbrainz.org/ws/2`). The browser suite starts its own local stub through this setting and never calls the live catalog. It covers ambiguous titles, missing metadata, concurrent/replayed saves, two-account isolation, outages, rate limits, timeout recovery, and phone keyboard use. Before beta, separately spot-check the live provider from the deployment host, including multilingual titles.

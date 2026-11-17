@@ -1,7 +1,7 @@
 import "server-only";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { drizzle } from "drizzle-orm/node-postgres";
+import { db } from "./db";
 import { headers } from "next/headers";
 import * as schema from "./schema";
 
@@ -20,7 +20,7 @@ if (!baseURL || !secret || secret.length < 32) {
 export const auth = betterAuth({
   baseURL,
   secret,
-  database: drizzleAdapter(drizzle(databaseUrl), { provider: "pg", schema, transaction: true }),
+  database: drizzleAdapter(db, { provider: "pg", schema, transaction: true }),
   emailAndPassword: { enabled: true },
   advanced: { cookiePrefix: "music-journal" },
 });
