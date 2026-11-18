@@ -63,6 +63,8 @@ Light uses the exact reference `:root` tokens. Dark uses the reference values un
 
 ## Components
 
+Catalog artwork uses a shared square frame with `muted` fill, a `border` edge, and `radius-lg` corners. Rows use a 64px frame. Album detail artwork scales to the available width up to 256px. Keep the frame in place for loading, success, and missing artwork. The loading skeleton observes reduced-motion preferences. Missing artwork uses a disc or person icon and a text label. Artist image credits sit with the artist name and link to the file and license.
+
 Installed: Button, Input, Label, Field, Card, NativeSelect and Separator. The reference also defines Textarea, Badge, Checkbox, Switch, Select, Tabs, Dialog, Tooltip and Avatar; add them from the same Base UI registry when a feature needs them. Apply the TE typography layer to new controls, tags and metadata in the shared stylesheet.
 
 ## Credits and sources

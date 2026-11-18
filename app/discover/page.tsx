@@ -10,6 +10,7 @@ import { relatedArtists, suggestedAlbum } from "../../lib/discover";
 import { db } from "../../lib/db";
 import { album, artist, listen, savedArtist, wantToListen } from "../../lib/schema";
 import { AlbumSummary } from "../album-summary";
+import { ArtistArtwork } from "../artwork";
 import { SavedArtistForm } from "../artists/saved-artist-form";
 import { JournalHeader } from "../journal-header";
 
@@ -89,7 +90,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
             <ul className="album-list">
               {suggestions.map(({ artist, album }) => (
                 <li className="artist-row" key={artist.id}>
-                  <strong>{artist.name}</strong>
+                  <ArtistArtwork id={artist.id}><strong>{artist.name}</strong></ArtistArtwork>
                   {savedIds.has(artist.id) ? (
                     <p>Saved to Saved Artists</p>
                   ) : (

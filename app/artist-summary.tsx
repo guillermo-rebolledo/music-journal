@@ -1,10 +1,13 @@
 import type { Artist } from "../lib/catalog";
+import { ArtistArtwork } from "./artwork";
 import { SavedArtistForm } from "./artists/saved-artist-form";
 
 export function ArtistSummary({ artist, saved }: { artist: Artist; saved: boolean }) {
   return <li className="artist-row">
-    <strong>{artist.name}</strong>
-    {artist.disambiguation && <p>{artist.disambiguation}</p>}
+    <ArtistArtwork key={artist.id} id={artist.id}>
+      <strong>{artist.name}</strong>
+      {artist.disambiguation && <p>{artist.disambiguation}</p>}
+    </ArtistArtwork>
     <SavedArtistForm artistId={artist.id} saved={saved} />
   </li>;
 }

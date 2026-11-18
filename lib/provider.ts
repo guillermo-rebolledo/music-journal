@@ -11,6 +11,8 @@ export class CatalogError extends Error {
 const providers = {
   musicbrainz: { lock: 731901, baseUrl: process.env.MUSICBRAINZ_BASE_URL || "https://musicbrainz.org/ws/2" },
   listenbrainz: { lock: 731902, baseUrl: process.env.LISTENBRAINZ_BASE_URL || "https://api.listenbrainz.org" },
+  wikidata: { lock: 731903, baseUrl: process.env.WIKIDATA_BASE_URL || "https://www.wikidata.org/w" },
+  commons: { lock: 731904, baseUrl: process.env.COMMONS_BASE_URL || "https://commons.wikimedia.org/w" },
 };
 
 function retryDelay(headers: Headers) {
@@ -43,7 +45,7 @@ export async function requestProvider<T>(
   ttl: number,
   parse: (data: unknown) => T,
 ): Promise<T> {
-  const cacheKey = provider === "musicbrainz" ? `v2:${path}` : `listenbrainz:${path}`;
+  const cacheKey = `${provider === "musicbrainz" ? "v2" : provider}:${path}`;
   if (pool.waitingCount >= 8) throw new CatalogError("rate-limit");
   const client = await pool.connect().catch(() => {
     throw new CatalogError("upstream");
