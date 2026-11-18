@@ -185,9 +185,12 @@ test("live search waits out a provider cooldown before requesting the latest que
   const input = page.getByLabel("Album title");
   const popup = page.getByRole("dialog", { name: "Search results" });
   const firstResponse = page.waitForResponse((response) =>
-    response.url().includes("/api/catalog/search?") && response.status() === 429);
+    response.url().includes("/api/catalog/search?") &&
+    new URL(response.url()).searchParams.get("q") === "throttled");
   await input.fill("throttled");
-  expect((await firstResponse).headers()["retry-after"]).toBe("6");
+  const coolingDown = await firstResponse;
+  expect(coolingDown.status()).toBe(200);
+  expect(await coolingDown.json()).toMatchObject({ retryAfter: 6 });
 
   await request.get(`${control}?reset=true`);
   const latest = `album ${crypto.randomUUID()}`;
@@ -207,7 +210,7 @@ test("live search retries a throttled query only once", async ({ page }) => {
   let requests = 0;
   await page.route("**/api/catalog/search?*", (route) => {
     requests++;
-    return route.fulfill({ status: 429, headers: { "Retry-After": "1" }, json: { error: "Busy" } });
+    return route.fulfill({ json: { error: "The catalog is busy. Please wait a moment and try again.", retryAfter: 1 } });
   });
   const popup = page.getByRole("dialog", { name: "Search results" });
   await page.getByLabel("Album title").fill("Shared title");

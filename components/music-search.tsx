@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { maxSearchLength, minSuggestionLength, type SearchAnswer, type SearchKind } from "@/lib/catalog-search";
 
-const searchDebounceMs = 700;
+const searchDebounceMs = 1000;
 const maxAutomaticWaitMs = 10000;
 const busyMessage = "The catalog is busy. Please wait a moment and try again.";
 
@@ -86,20 +86,14 @@ export function MusicSearch({ kind, children }: { kind: SearchKind; children?: R
         let result: SearchAnswer;
         try {
           const response = await fetch(`/api/catalog/search?${new URLSearchParams({ kind, q })}`, { signal: controller.signal });
-          if (response.status === 429) {
-            const retryAfter = response.headers.get("Retry-After") ?? "";
-            const delay = /^\d+$/.test(retryAfter)
-              ? Number(retryAfter) * 1000
-              : Date.parse(retryAfter) - Date.now();
-            retryAt.current = Date.now() + (delay > 0 ? delay : 5000);
-            if (controller.signal.aborted) return;
+          result = await response.json();
+          if (controller.signal.aborted) return;
+          if ("error" in result && typeof result.retryAfter === "number") {
+            retryAt.current = Date.now() + Math.max(1, result.retryAfter) * 1000;
             if (canRetry) {
               scheduleSearch(0, false);
               return;
             }
-            result = { error: busyMessage };
-          } else {
-            result = await response.json();
           }
         } catch {
           result = { error: "The catalog is temporarily unavailable. Please try again." };

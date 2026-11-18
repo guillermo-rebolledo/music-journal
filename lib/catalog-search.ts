@@ -16,4 +16,4 @@ export type SearchMatch = {
   cover?: string;
 };
 
-export type SearchAnswer = { matches: SearchMatch[] } | { error: string };
+export type SearchAnswer = { matches: SearchMatch[] } | { error: string; retryAfter?: number };
