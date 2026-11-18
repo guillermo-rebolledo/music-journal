@@ -144,3 +144,30 @@ test.describe("phone album flow", () => {
     await expect(page.getByRole("button", { name: "Save to Want to Listen", exact: true })).toBeVisible();
   });
 });
+
+test("live album suggestions filter and open by keyboard", async ({ page, request }) => {
+  expect((await request.get("/api/catalog/search?kind=album&q=Shared")).status()).toBe(401);
+  await account(page);
+  await page.goto("/search");
+  await page.keyboard.press("Control+k");
+  const input = page.getByLabel("Album title");
+  await expect(input).toBeFocused();
+  await input.fill("Shared title");
+  const popup = page.getByRole("dialog", { name: "Search results" });
+  await expect(popup.getByRole("link", { name: /Shared title/ })).toHaveCount(2);
+  await popup.getByText("Filters", { exact: true }).click();
+  await popup.getByLabel("Release year").selectOption("2005");
+  await expect(popup.getByRole("link")).toHaveCount(1);
+  await input.focus();
+  await input.press("ArrowDown");
+  const result = popup.getByRole("link", { name: /Shared title.*Second Artist.*2005/ });
+  await expect(result).toBeFocused();
+  await result.press("Escape");
+  await expect(popup).toBeHidden();
+  await expect(input).toBeFocused();
+  await input.press("ArrowDown");
+  await expect(result).toBeVisible();
+  await expect(result).toBeFocused();
+  await result.press("Enter");
+  await expect(page).toHaveURL("/albums/22222222-2222-4222-8222-222222222222");
+});

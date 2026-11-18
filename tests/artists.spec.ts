@@ -179,3 +179,24 @@ test.describe("phone artist flow", () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
   });
 });
+
+test("live artist suggestions lead to the selected artist's save control", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.emulateMedia({ colorScheme: "dark" });
+  await account(page);
+  await page.goto("/search/artists");
+  const input = page.getByLabel("Artist name");
+  await page.route("**/api/catalog/search?*", (route) => route.abort(), { times: 1 });
+  await input.fill("Shared artist");
+  const popup = page.getByRole("dialog", { name: "Search results" });
+  await expect(popup.getByRole("alert")).toContainText("temporarily unavailable");
+  await popup.getByRole("button", { name: "Try again" }).click();
+  await expect(input).toBeFocused();
+  const bounds = await popup.boundingBox();
+  expect(bounds?.x).toBeGreaterThanOrEqual(0);
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(320);
+  await popup.getByRole("link", { name: /Mexican electronic duo/ }).click();
+  await expect(page).toHaveURL(`/search/artists?q=Shared+artist#artist-${first}`);
+  await expect(popup).toBeHidden();
+  await expect(row(page).getByRole("button", { name: "Save artist", exact: true })).toBeVisible();
+});
