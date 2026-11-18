@@ -178,3 +178,39 @@ test("live album suggestions filter and open by keyboard", async ({ page, reques
   await page.reload();
   await expect(result).toBeVisible();
 });
+
+test("live search waits out a provider cooldown before requesting the latest query", async ({ page, request }) => {
+  await account(page);
+  await page.goto("/search");
+  const input = page.getByLabel("Album title");
+  const popup = page.getByRole("dialog", { name: "Search results" });
+  const firstResponse = page.waitForResponse((response) =>
+    response.url().includes("/api/catalog/search?") && response.status() === 429);
+  await input.fill("throttled");
+  expect((await firstResponse).headers()["retry-after"]).toBe("6");
+
+  await request.get(`${control}?reset=true`);
+  const latest = `album ${crypto.randomUUID()}`;
+  const statuses: number[] = [];
+  page.on("response", (response) => {
+    if (new URL(response.url()).searchParams.get("q") === latest) statuses.push(response.status());
+  });
+  await input.fill(latest);
+  await expect(popup.getByRole("link", { name: /Shared title/ }).first()).toBeVisible({ timeout: 10000 });
+  expect(statuses).toEqual([200]);
+  expect(await (await request.get(control)).json()).toHaveLength(1);
+});
+
+test("live search retries a throttled query only once", async ({ page }) => {
+  await account(page);
+  await page.goto("/search");
+  let requests = 0;
+  await page.route("**/api/catalog/search?*", (route) => {
+    requests++;
+    return route.fulfill({ status: 429, headers: { "Retry-After": "1" }, json: { error: "Busy" } });
+  });
+  const popup = page.getByRole("dialog", { name: "Search results" });
+  await page.getByLabel("Album title").fill("Shared title");
+  await expect(popup.getByRole("alert")).toContainText("catalog is busy");
+  expect(requests).toBe(2);
+});

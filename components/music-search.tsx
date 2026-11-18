@@ -7,6 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { maxSearchLength, minSuggestionLength, type SearchAnswer, type SearchKind } from "@/lib/catalog-search";
 
+const searchDebounceMs = 700;
+const maxAutomaticWaitMs = 10000;
+const busyMessage = "The catalog is busy. Please wait a moment and try again.";
+
 export function MusicSearch({ kind, children }: { kind: SearchKind; children?: ReactNode }) {
   const params = useSearchParams();
   const [query, setQuery] = useState(() => (params.get("q") ?? "").slice(0, maxSearchLength));
@@ -15,11 +19,13 @@ export function MusicSearch({ kind, children }: { kind: SearchKind; children?: R
   const artist = params.get("artist") ?? "";
   const filtersOpen = params.get("filters") === "1";
   const input = useRef<HTMLInputElement>(null);
+  const retryAt = useRef(0);
   const [open, setOpen] = useState(live);
   const [attempt, setAttempt] = useState(0);
   const [answer, setAnswer] = useState<{ q: string; attempt: number; result: SearchAnswer }>();
   const q = query.trim();
   const canSearch = q.length >= minSuggestionLength;
+  const active = open || filtersOpen;
   const current = canSearch && answer?.q === q && answer.attempt === attempt ? answer.result : undefined;
   const matches = current && "matches" in current ? current.matches : [];
   const error = current && "error" in current ? current.error : "";
@@ -65,24 +71,50 @@ export function MusicSearch({ kind, children }: { kind: SearchKind; children?: R
   }, []);
 
   useEffect(() => {
-    if ((!open && !filtersOpen) || !canSearch || current) return;
+    if (!active || !canSearch || current) return;
     const controller = new AbortController();
-    const timer = setTimeout(async () => {
-      let result: SearchAnswer;
-      try {
-        const response = await fetch(`/api/catalog/search?${new URLSearchParams({ kind, q })}`, { signal: controller.signal });
-        result = await response.json();
-      } catch {
-        result = { error: "The catalog is temporarily unavailable. Please try again." };
+    let timer: ReturnType<typeof setTimeout>;
+
+    function scheduleSearch(debounce: number, canRetry: boolean) {
+      const wait = Math.max(debounce, retryAt.current - Date.now());
+      if (wait > maxAutomaticWaitMs) {
+        setAnswer({ q, attempt, result: { error: busyMessage } });
+        return;
       }
-      if (!controller.signal.aborted) setAnswer({ q, attempt, result });
-    }, 300);
+
+      timer = setTimeout(async () => {
+        let result: SearchAnswer;
+        try {
+          const response = await fetch(`/api/catalog/search?${new URLSearchParams({ kind, q })}`, { signal: controller.signal });
+          if (response.status === 429) {
+            const retryAfter = response.headers.get("Retry-After") ?? "";
+            const delay = /^\d+$/.test(retryAfter)
+              ? Number(retryAfter) * 1000
+              : Date.parse(retryAfter) - Date.now();
+            retryAt.current = Date.now() + (delay > 0 ? delay : 5000);
+            if (controller.signal.aborted) return;
+            if (canRetry) {
+              scheduleSearch(0, false);
+              return;
+            }
+            result = { error: busyMessage };
+          } else {
+            result = await response.json();
+          }
+        } catch {
+          result = { error: "The catalog is temporarily unavailable. Please try again." };
+        }
+        if (!controller.signal.aborted) setAnswer({ q, attempt, result });
+      }, wait);
+    }
+
+    scheduleSearch(searchDebounceMs, true);
 
     return () => {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [attempt, canSearch, current, filtersOpen, kind, open, q]);
+  }, [active, attempt, canSearch, current, kind, q]);
 
   return (
     <>
