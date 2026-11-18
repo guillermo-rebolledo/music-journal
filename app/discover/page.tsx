@@ -12,7 +12,6 @@ import { album, artist, listen, savedArtist, wantToListen } from "../../lib/sche
 import { AlbumSummary } from "../album-summary";
 import { ArtistArtwork } from "../artwork";
 import { SavedArtistForm } from "../artists/saved-artist-form";
-import { JournalHeader } from "../journal-header";
 
 export const metadata = { title: "Discover | Music Journal" };
 
@@ -60,7 +59,6 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
 
   return (
     <>
-      <JournalHeader current="discover" />
       <main id="main-content" tabIndex={-1}>
         <h1>Discover</h1>
         <section className="results-heading" aria-labelledby="related-artists">

@@ -30,7 +30,8 @@ test("a returning listener can sign in from another browser and sign out", async
     await expect(otherPage.getByText("Nora Listener", { exact: true })).toBeVisible();
 
     const signedIn = await device.storageState();
-    await otherPage.getByRole("button", { name: "Sign out" }).click();
+    await otherPage.getByRole("button", { name: /^Account menu/ }).click();
+    await otherPage.getByRole("menuitem", { name: "Sign out" }).click();
     await expect(otherPage).toHaveURL(/\/sign-in$/);
     await device.addCookies(signedIn.cookies);
     await otherPage.goto("/journal");
@@ -70,12 +71,17 @@ test.describe("phone", () => {
 
   test("the sign-in and Journal entry flow works with a keyboard", async ({ page }) => {
     const email = await createAccount(page, "Sam Listener");
-    await page.getByRole("button", { name: "Sign out" }).click();
+    await page.getByRole("button", { name: /^Account menu/ }).click();
+    await page.getByRole("menuitem", { name: "Sign out" }).click();
     await expect(page).toHaveURL(/\/sign-in$/);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
 
     await page.keyboard.press("Tab");
     await expect(page.getByRole("link", { name: "Skip to content" })).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("link", { name: "Music Journal" })).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("button", { name: "Menu" })).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(page.getByLabel("Email")).toBeFocused();
     await page.keyboard.type(email);
@@ -93,11 +99,18 @@ test.describe("phone", () => {
     await page.keyboard.press("Tab");
     await expect(page.getByRole("link", { name: "Skip to content" })).toBeFocused();
     await page.keyboard.press("Tab");
+    await expect(page.getByRole("link", { name: "Music Journal" })).toBeFocused();
+    await page.keyboard.press("Tab");
     await expect(page.getByRole("link", { name: "Journal", exact: true })).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(page.getByRole("link", { name: "Discover", exact: true })).toBeFocused();
     await page.keyboard.press("Tab");
-    await expect(page.getByRole("button", { name: "Sign out" })).toBeFocused();
+    await expect(page.getByRole("link", { name: "Search", exact: true })).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("button", { name: /^Account menu/ })).toBeFocused();
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("ArrowUp");
+    await expect(page.getByRole("menuitem", { name: "Sign out" })).toBeFocused();
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL(/\/sign-in$/);
   });
