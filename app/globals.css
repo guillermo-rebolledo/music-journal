@@ -302,6 +302,8 @@
   .journal-sections section { min-width: 0; }
   .journal-sections p, .artist-row p { color: var(--muted-foreground); }
   .results-heading { margin-top: var(--space-8); }
+  .catalog-search-input:focus-within { border-color: var(--ring); box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent); }
+  .catalog-search-results { max-height: min(26.25rem, max(7.5rem, calc(var(--available-height) - 10rem))); scroll-padding: 4px; }
   .album-list { list-style: none; margin: 0; padding: 0; }
   .album-row { display: flex; align-items: center; gap: var(--space-3); padding-block: var(--space-4); border-bottom: 1px solid var(--border); }
   .album-row > div { min-width: 0; overflow-wrap: anywhere; }
@@ -333,13 +335,18 @@
 @media (pointer: coarse) {
   [data-slot="button"], [data-slot="input"], [data-slot="native-select"], .site-nav a { min-height: 2.75rem; }
 }
+@media (forced-colors: active) {
+  .catalog-search-input:focus-within { outline: 2px solid Highlight; outline-offset: 2px; }
+}
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
 
 /* The TE layer intentionally overrides the registry's default type utilities. */
-[data-slot="button"], [data-slot="label"], [data-slot="field-label"] {
+[data-slot="button"], [data-slot="label"], [data-slot="field-label"], [data-slot="select-trigger"] {
   font: var(--type-control);
   letter-spacing: .05em;
   text-transform: uppercase;
 }
 [data-slot="input"], [data-slot="native-select"] { font: var(--type-body); }
 [data-slot="card-description"] { font: var(--type-meta); font-variant-numeric: tabular-nums; }
+.catalog-search-filter[data-slot="select-trigger"] { height: auto; min-height: 2.75rem; white-space: normal; }
+.catalog-search-filter [data-slot="select-value"] { display: block; line-clamp: unset; -webkit-line-clamp: unset; overflow-wrap: anywhere; }

@@ -16,9 +16,7 @@ async function account(page: Page) {
 }
 
 async function search(page: Page, q: string) {
-  await page.goto("/search/artists");
-  await page.getByLabel("Artist name").fill(q);
-  await page.getByLabel("Artist name").press("Enter");
+  await page.goto(`/search/artists?${new URLSearchParams({ q })}`);
 }
 
 function row(page: Page, detail = "Mexican electronic duo") {
@@ -32,7 +30,7 @@ test("ambiguous artists, concurrent saves, persistence across sessions, private 
   await expect(page.getByText("Keep track of artists you want to explore.")).toBeVisible();
   await page.getByRole("link", { name: "Search artists" }).click();
   await page.getByLabel("Artist name").fill("Shared artist");
-  await page.getByRole("button", { name: "Search", exact: true }).click();
+  await page.getByRole("dialog", { name: "Search results" }).getByRole("link", { name: /Mexican electronic duo/ }).click();
   await expect(row(page)).toBeVisible();
   await expect(row(page, "British folk singer")).toBeVisible();
   await expect(page.getByRole("listitem")).toHaveCount(3);
@@ -162,6 +160,7 @@ test.describe("phone artist flow", () => {
     await page.keyboard.press("Enter");
     await page.getByLabel("Artist name").focus();
     await page.keyboard.type("Sparse artist");
+    await page.getByRole("dialog", { name: "Search results" }).getByRole("link", { name: "Sparse artist" }).focus();
     await page.keyboard.press("Enter");
     const target = row(page, "Sparse artist");
     await target.getByRole("button", { name: "Save artist", exact: true }).focus();

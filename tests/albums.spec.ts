@@ -14,9 +14,7 @@ async function account(page: Page) {
 }
 
 async function search(page: Page, q: string) {
-  await page.goto("/search");
-  await page.getByLabel("Album title").fill(q);
-  await page.getByLabel("Album title").press("Enter");
+  await page.goto(`/search?${new URLSearchParams({ q })}`);
 }
 
 test.afterEach(async ({ request }) => { await request.get(`${control}?outage=false`); });
@@ -25,12 +23,12 @@ test("ambiguous albums, concurrent saves, reloads, removal, outages and account 
   await account(page);
   await page.getByRole("link", { name: "Search albums" }).click();
   await page.getByLabel("Album title").fill("Shared title");
-  await page.getByRole("button", { name: "Search", exact: true }).click();
-  await expect(page.getByText("First Artist & Guest · 1998")).toBeVisible();
-  await expect(page.getByText("Second Artist · 2005")).toBeVisible();
-  await expect(page.getByRole("link", { name: "Shared title", exact: true })).toHaveCount(2);
-  await expect(page.getByText("Unknown artist · Year unknown")).toBeVisible();
-  await page.getByRole("link", { name: "Shared title", exact: true }).first().click();
+  const popup = page.getByRole("dialog", { name: "Search results" });
+  await expect(popup.getByText("First Artist & Guest · 1998")).toBeVisible();
+  await expect(popup.getByText("Second Artist · 2005")).toBeVisible();
+  await expect(popup.getByRole("link", { name: /Shared title/ })).toHaveCount(2);
+  await expect(popup.getByText("Unknown artist · Year unknown")).toBeVisible();
+  await popup.getByRole("link", { name: /Shared title.*First Artist/ }).click();
   await expect(page).toHaveURL(`/albums/${first}`);
   await expect(page.getByText("No cover available")).toBeVisible();
   const anotherTab = await page.context().newPage();
@@ -128,8 +126,7 @@ test.describe("phone album flow", () => {
     await page.goto("/search");
     await page.getByLabel("Album title").focus();
     await page.keyboard.type("Sparse album");
-    await page.keyboard.press("Enter");
-    await page.getByRole("link", { name: "Sparse album", exact: true }).focus();
+    await page.getByRole("link", { name: /Sparse album/ }).focus();
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL(`/albums/${sparse}`);
     await expect(page.getByText("Unknown artist · Year unknown")).toBeVisible();
@@ -155,8 +152,11 @@ test("live album suggestions filter and open by keyboard", async ({ page, reques
   await input.fill("Shared title");
   const popup = page.getByRole("dialog", { name: "Search results" });
   await expect(popup.getByRole("link", { name: /Shared title/ })).toHaveCount(2);
-  await popup.getByText("Filters", { exact: true }).click();
-  await popup.getByLabel("Release year").selectOption("2005");
+  const searchPanel = page.getByRole("search", { name: "Find albums" });
+  await expect(searchPanel.getByRole("button", { name: "Search", exact: true })).toHaveCount(0);
+  await searchPanel.getByRole("button", { name: "Filters", exact: true }).click();
+  await searchPanel.getByRole("combobox", { name: "Release year" }).click();
+  await page.getByRole("option", { name: "2005" }).click();
   await expect(popup.getByRole("link")).toHaveCount(1);
   await input.focus();
   await input.press("ArrowDown");
@@ -168,6 +168,13 @@ test("live album suggestions filter and open by keyboard", async ({ page, reques
   await input.press("ArrowDown");
   await expect(result).toBeVisible();
   await expect(result).toBeFocused();
-  await result.press("Enter");
+  await input.focus();
+  await input.press("Enter");
   await expect(page).toHaveURL("/albums/22222222-2222-4222-8222-222222222222");
+  await page.goBack();
+  await expect(input).toHaveValue("Shared title");
+  await expect(result).toBeVisible();
+  await expect(searchPanel.getByRole("combobox", { name: "Release year" }).locator('[data-slot="select-value"]')).toHaveText("2005");
+  await page.reload();
+  await expect(result).toBeVisible();
 });

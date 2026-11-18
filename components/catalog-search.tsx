@@ -3,81 +3,48 @@
 import { Popover } from "@base-ui/react/popover";
 import { ChevronDown, Search, UserRound, X } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import { useId, useRef, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import { Artwork } from "@/app/artwork";
 import { Button } from "@/components/ui/button";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
-import { maxSearchLength, minSuggestionLength, searchHref, searchPaths, type SearchAnswer, type SearchKind } from "@/lib/catalog-search";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { maxSearchLength, searchHref, type SearchKind, type SearchMatch } from "@/lib/catalog-search";
 
-export function CatalogSearch({ kind, initialQuery }: { kind: SearchKind; initialQuery: string }) {
+export function CatalogSearch({
+  kind, query, year, artist, years, artists, filtersOpen, matches,
+  busy, open, inputRef, onOpenChange, onChange, updates,
+}: {
+  kind: SearchKind;
+  query: string;
+  year: string;
+  artist: string;
+  years: string[];
+  artists: string[];
+  filtersOpen: boolean;
+  matches: SearchMatch[];
+  busy: boolean;
+  open: boolean;
+  inputRef: RefObject<HTMLInputElement | null>;
+  onOpenChange: (open: boolean) => void;
+  onChange: (values: Record<string, string>) => void;
+  updates: ReactNode;
+}) {
   const id = useId();
-  const anchor = useRef<HTMLFormElement>(null);
-  const input = useRef<HTMLInputElement>(null);
+  const anchor = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLUListElement>(null);
   const focusFirst = useRef(false);
-  const returnFocus = useRef(true);
-  const [query, setQuery] = useState(initialQuery);
-  const [open, setOpen] = useState(false);
-  const [attempt, setAttempt] = useState(0);
-  const [answer, setAnswer] = useState<{ q: string; attempt: number; result: SearchAnswer }>();
-  const [year, setYear] = useState("");
-  const [creditedArtist, setCreditedArtist] = useState("");
-  const q = query.trim();
-  const canSearch = q.length >= minSuggestionLength && q.length <= maxSearchLength;
-  const current = canSearch && answer?.q === q && answer.attempt === attempt ? answer.result : undefined;
-  const matches = current && "matches" in current ? current.matches : [];
-  const error = current && "error" in current ? current.error : "";
-  const pending = canSearch && !current;
-  const years = [...new Set(matches.flatMap((match) => match.year == null ? [] : [match.year]))].sort((a, b) => b - a);
-  const creditedArtists = kind === "album" ? [...new Set(matches.map((match) => match.detail ?? ""))].sort() : [];
-  const filtered = matches.filter((match) =>
-    (!year || String(match.year) === year) && (!creditedArtist || match.detail === creditedArtist));
-  const label = kind === "album" ? "Album title" : "Artist name";
+  const restoreFocus = useRef(true);
+  const activeFilters = Number(!!year) + Number(!!artist);
 
-  useEffect(() => {
-    if (!open || !canSearch || current) return;
-    const controller = new AbortController();
-    const timer = setTimeout(async () => {
-      let result: SearchAnswer;
-      try {
-        const response = await fetch(`/api/catalog/search?${new URLSearchParams({ kind, q })}`, { signal: controller.signal });
-        result = await response.json();
-      } catch {
-        result = { error: "The catalog is temporarily unavailable. Please try again." };
-      }
-      if (!controller.signal.aborted) setAnswer({ q, attempt, result });
-    }, 300);
-    return () => {
-      clearTimeout(timer);
-      controller.abort();
-    };
-  }, [attempt, canSearch, current, kind, open, q]);
-
-  useEffect(() => {
-    function focusSearch(event: globalThis.KeyboardEvent) {
-      if (event.defaultPrevented || event.isComposing || event.altKey ||
-          !(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "k") return;
-      event.preventDefault();
-      setOpen(true);
-      input.current?.focus();
-    }
-    window.addEventListener("keydown", focusSearch);
-    return () => window.removeEventListener("keydown", focusSearch);
-  }, []);
-
-  function changeQuery(value: string) {
-    setQuery(value);
-    setYear("");
-    setCreditedArtist("");
-    setOpen(true);
-  }
-
-  function moveInResults(event: KeyboardEvent, index: number) {
+  function moveInResults(event: KeyboardEvent<HTMLAnchorElement>, index: number) {
     const links = list.current?.querySelectorAll("a");
     if (!links?.length) return;
-    let next;
+    let next: number;
+    if (event.key === " ") {
+      event.preventDefault();
+      event.currentTarget.click();
+      return;
+    }
     if (event.key === "ArrowDown") next = (index + 1) % links.length;
     else if (event.key === "ArrowUp") next = (index + links.length - 1) % links.length;
     else if (event.key === "Home") next = 0;
@@ -87,135 +54,160 @@ export function CatalogSearch({ kind, initialQuery }: { kind: SearchKind; initia
     links[next]?.focus();
   }
 
+  function changeQuery(value: string, clear = false) {
+    onChange({ q: value, year: "", artist: "", search: "1", filters: !clear && filtersOpen ? "1" : "" });
+    onOpenChange(true);
+  }
+
+  function changeFilters(values: Record<string, string>) {
+    onChange({ ...values, search: "1" });
+    onOpenChange(true);
+  }
+
   return (
-    <Popover.Root open={open} onOpenChange={(next, details) => {
-      if (details.reason === "outside-press" && details.event.target instanceof Node &&
-          anchor.current?.contains(details.event.target)) return;
-      returnFocus.current = details.reason !== "outside-press" && details.reason !== "focus-out";
-      setOpen(next);
-    }}>
-      <form ref={anchor} action={searchPaths[kind]} role="search" aria-label={`Search ${kind}s`}
-        className="mt-6 max-w-xl" onSubmit={() => setOpen(false)}>
-        <FieldGroup>
-          <Field>
-            <FieldLabel htmlFor={`${id}-query`}>{label}</FieldLabel>
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative min-w-0 flex-[1_1_10rem]">
-                <Search aria-hidden="true" className="pointer-events-none absolute inset-s-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input ref={input} id={`${id}-query`} name="q" type="search" role="combobox"
-                  aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? `${id}-results` : undefined}
-                  aria-keyshortcuts="Control+K Meta+K" autoComplete="off" placeholder={`Search ${kind}s…`}
-                  maxLength={maxSearchLength} required value={query}
-                  className="ps-9 pe-12 [&::-webkit-search-cancel-button]:hidden"
-                  onClick={() => setOpen(true)} onChange={(event) => changeQuery(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "ArrowDown") {
-                      event.preventDefault();
-                      if (open) moveInResults(event, -1);
-                      else {
-                        focusFirst.current = true;
-                        setOpen(true);
-                      }
-                    } else if (event.key === "Escape" && open) {
-                      event.preventDefault();
-                      setOpen(false);
+    <section role="search" aria-label={`Find ${kind}s`} className="mt-6 rounded-xl border border-border bg-muted p-4 sm:p-6">
+      <p id={`${id}-help`} className="sr-only">
+        {kind === "album" ? "Search the Catalog by album title." : "Search the Catalog by artist name."} Use Down Arrow to browse the results.
+      </p>
+      <div ref={anchor}>
+        <div className="flex flex-wrap items-center gap-2">
+          <Popover.Root open={open} modal={false} onOpenChange={(next, details) => {
+            if (details.reason === "outside-press" && details.event.target instanceof Node &&
+                anchor.current?.contains(details.event.target)) return;
+            restoreFocus.current = details.reason !== "outside-press" && details.reason !== "focus-out";
+            onOpenChange(next);
+          }}>
+            <div className="catalog-search-input flex min-h-11 min-w-0 basis-full items-center gap-2 rounded-md border border-input bg-background ps-3 pe-1 sm:flex-[1_1_9rem]">
+              <Search className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+              <Input ref={inputRef} type="search" role="combobox" aria-label={kind === "album" ? "Album title" : "Artist name"}
+                aria-expanded={open} aria-haspopup="dialog" aria-controls={open ? `${id}-results` : undefined}
+                aria-describedby={`${id}-help`} aria-keyshortcuts="Control+K Meta+K"
+                autoComplete="off" placeholder={`Search ${kind}s…`} maxLength={maxSearchLength} value={query}
+                className="min-w-0 flex-1 rounded-none border-0 bg-transparent p-0 shadow-none focus-visible:ring-0 dark:bg-transparent [&::-webkit-search-cancel-button]:hidden"
+                onClick={() => onOpenChange(true)}
+                onChange={(event) => changeQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.nativeEvent.isComposing) return;
+                  if (event.key === "ArrowDown") {
+                    event.preventDefault();
+                    if (open) list.current?.querySelector("a")?.focus();
+                    else {
+                      focusFirst.current = true;
+                      onOpenChange(true);
                     }
-                  }}
-                />
-                {query && (
-                  <div className="absolute inset-y-0 inset-e-0 flex items-center">
-                    <Button type="button" variant="ghost" size="icon" aria-label="Clear search"
-                      className="min-w-11"
-                      onClick={() => { changeQuery(""); input.current?.focus(); }}>
-                      <X aria-hidden="true" />
-                    </Button>
-                  </div>
-                )}
-              </div>
-              <Popover.Trigger aria-label="Toggle search results" render={<Button type="button" variant="outline" size="icon" />}>
+                  } else if (event.key === "Enter" && open) {
+                    event.preventDefault();
+                    list.current?.querySelector("a")?.click();
+                  } else if (event.key === "Escape" && open) {
+                    event.preventDefault();
+                    onOpenChange(false);
+                  }
+                }}
+              />
+              {query && (
+                <Button variant="ghost" size="icon" aria-label="Clear search"
+                  onClick={() => { changeQuery("", true); inputRef.current?.focus(); }}>
+                  <X aria-hidden="true" />
+                </Button>
+              )}
+              <Popover.Trigger aria-label={`Show ${kind}s`} render={<Button variant="ghost" size="icon" />}>
                 <ChevronDown aria-hidden="true" />
               </Popover.Trigger>
-              <Button type="submit" size="lg">Search</Button>
             </div>
-          </Field>
-        </FieldGroup>
-      </form>
-      <Popover.Portal>
-        <Popover.Positioner anchor={anchor} sideOffset={8} positionMethod="fixed" className="z-20 w-(--anchor-width)">
-          <Popover.Popup id={`${id}-results`} aria-label="Search results"
-            initialFocus={() => {
-              if (!focusFirst.current) return false;
-              focusFirst.current = false;
-              return list.current?.querySelector("a") ?? false;
-            }}
-            finalFocus={() => returnFocus.current ? input.current : false}
-            className="max-h-(--available-height) overflow-y-auto overscroll-contain rounded-md bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10">
-            <div className="flex items-center justify-between gap-2 border-b border-border px-3">
-              <output aria-live="polite" aria-atomic="true" className="text-sm text-muted-foreground [overflow-wrap:anywhere]">
-                {q.length > maxSearchLength ? `Use ${maxSearchLength} characters or fewer.`
-                  : !canSearch ? `Enter at least ${minSuggestionLength} characters for suggestions.`
-                  : pending ? "Searching…"
-                  : error ? ""
-                  : !matches.length ? `No ${kind}s found for “${q}”.`
-                  : !filtered.length ? "No matches. Try a different filter."
-                  : filtered.length === matches.length ? `${matches.length} ${matches.length === 1 ? "match" : "matches"} for “${q}”`
-                  : `${filtered.length} of ${matches.length} matches`}
-              </output>
-              <Popover.Close render={<Button variant="ghost" size="icon" aria-label="Close search results" />}><X aria-hidden="true" /></Popover.Close>
-            </div>
-            {error && (
-              <div className="flex flex-wrap items-center gap-2 p-3">
-                <span role="alert">{error}</span>
-                <Button variant="outline" onClick={() => { setAttempt(attempt + 1); input.current?.focus(); }}>Try again</Button>
-              </div>
-            )}
-            {kind === "album" && matches.length > 1 && (years.length > 0 || creditedArtists.length > 1) && (
-              <details className="border-b border-border px-3 py-2">
-                <summary className="cursor-pointer rounded-sm text-sm outline-ring focus-visible:outline-2">Filters</summary>
-                <FieldGroup className="mt-2 gap-2 sm:grid sm:grid-cols-2">
-                  {years.length > 0 && (
-                    <Field>
-                      <FieldLabel htmlFor={`${id}-year`}>Release year</FieldLabel>
-                      <NativeSelect id={`${id}-year`} value={year} onChange={(event) => setYear(event.target.value)}>
-                        <NativeSelectOption value="">All years</NativeSelectOption>
-                        {years.map((value) => <NativeSelectOption key={value}>{value}</NativeSelectOption>)}
-                      </NativeSelect>
-                    </Field>
+            <Popover.Portal>
+              <Popover.Positioner anchor={anchor} positionMethod="fixed" sideOffset={8}
+                className="z-20 w-(--anchor-width) max-w-(--available-width)">
+                <Popover.Popup id={`${id}-results`} aria-label="Search results"
+                  initialFocus={() => {
+                    if (!focusFirst.current) return false;
+                    focusFirst.current = false;
+                    return list.current?.querySelector("a") ?? false;
+                  }}
+                  finalFocus={() => restoreFocus.current ? inputRef.current : false}
+                  className="max-h-(--available-height) overflow-y-auto overscroll-contain rounded-md border border-transparent bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10">
+                  <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-1">
+                    <p className="meta mt-0 min-w-0">Explore the Catalog</p>
+                    <Popover.Close render={<Button variant="ghost" size="icon" aria-label="Close search" />}>
+                      <X aria-hidden="true" />
+                    </Popover.Close>
+                  </div>
+                  <div className="px-3 py-2">{updates}</div>
+                  <ul ref={list} aria-busy={busy} className="catalog-search-results overflow-y-auto overscroll-contain p-1 empty:hidden">
+                    {matches.map((match, index) => (
+                      <li key={match.id}>
+                        <Link prefetch={false}
+                          href={kind === "album" ? `/albums/${match.id}` : `${searchHref(kind, query.trim())}#artist-${match.id}`}
+                          onNavigate={() => onOpenChange(false)} onKeyDown={(event) => moveInResults(event, index)}
+                          className="flex min-h-24 items-center gap-4 rounded-md p-3 no-underline hover:bg-accent focus-visible:bg-accent focus-visible:outline-offset-[-3px]">
+                          <span aria-hidden="true">
+                            {match.cover ? <Artwork kind="album" image={{ src: match.cover }} /> : <span className="artwork"><UserRound className="size-5 text-muted-foreground" /></span>}
+                          </span>
+                          <span className="flex min-w-0 flex-col gap-1 [overflow-wrap:anywhere]">
+                            <span className="font-medium"><bdi>{match.title}</bdi></span>
+                            {(match.detail || kind === "album") && (
+                              <span className="meta">{match.detail}{kind === "album" && ` · ${match.year ?? "Year unknown"}`}</span>
+                            )}
+                          </span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                  {kind === "album" && (
+                    <p className="mt-0 border-t border-border px-3 py-2 text-sm text-muted-foreground">
+                      Filters narrow up to 20 returned matches.
+                    </p>
                   )}
-                  {creditedArtists.length > 1 && (
-                    <Field>
-                      <FieldLabel htmlFor={`${id}-artist`}>Credited artist</FieldLabel>
-                      <NativeSelect id={`${id}-artist`} value={creditedArtist} onChange={(event) => setCreditedArtist(event.target.value)}>
-                        <NativeSelectOption value="">All artists</NativeSelectOption>
-                        {creditedArtists.map((value) => <NativeSelectOption key={value} value={value}>{value}</NativeSelectOption>)}
-                      </NativeSelect>
-                    </Field>
-                  )}
-                </FieldGroup>
-              </details>
+                </Popover.Popup>
+              </Popover.Positioner>
+            </Popover.Portal>
+          </Popover.Root>
+          {kind === "album" && (
+            <Button variant="outline" className="min-h-11" aria-expanded={filtersOpen}
+              aria-controls={`${id}-filters`} onClick={() => onChange({ filters: filtersOpen ? "" : "1" })}>
+              Filters{activeFilters > 0 ? ` (${activeFilters} active)` : ""}
+              <ChevronDown aria-hidden="true" />
+            </Button>
+          )}
+        </div>
+        {kind === "album" && (
+          <div id={`${id}-filters`} hidden={!filtersOpen} className="mt-2 flex-wrap items-center gap-2 not-hidden:flex">
+            <CatalogFilter label="Credited artist" value={artist} emptyLabel="All artists" options={artists}
+              onChange={(value) => changeFilters({ artist: value })} />
+            <CatalogFilter label="Release year" value={year} emptyLabel="All years" options={years}
+              onChange={(value) => changeFilters({ year: value })} />
+            {activeFilters > 0 && (
+              <Button variant="ghost" onClick={() => changeFilters({ year: "", artist: "" })}>
+                Clear filters
+              </Button>
             )}
-            <ul ref={list} aria-busy={pending} className="max-h-72 overflow-y-auto overscroll-contain empty:hidden p-1">
-              {filtered.map((match, index) => (
-                <li key={match.id}>
-                  <Link prefetch={false} href={kind === "album" ? `/albums/${match.id}` : `${searchHref(kind, q)}#artist-${match.id}`}
-                    onNavigate={() => setOpen(false)} onKeyDown={(event) => moveInResults(event, index)}
-                    className="flex min-h-11 items-center gap-3 rounded-md p-2 no-underline hover:bg-muted focus-visible:bg-muted focus-visible:outline-offset-[-3px]">
-                    <span aria-hidden="true">
-                      {match.cover ? <Artwork kind="album" image={{ src: match.cover }} /> : <span className="artwork"><UserRound className="size-5 text-muted-foreground" /></span>}
-                    </span>
-                    <span className="min-w-0 [overflow-wrap:anywhere]">
-                      <strong><bdi>{match.title}</bdi></strong>
-                      {(match.detail || kind === "album") && (
-                        <span className="meta block">{match.detail}{kind === "album" && ` · ${match.year ?? "Year unknown"}`}</span>
-                      )}
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </Popover.Popup>
-        </Popover.Positioner>
-      </Popover.Portal>
-    </Popover.Root>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function CatalogFilter({ label, value, emptyLabel, options, onChange }: {
+  label: string;
+  value: string;
+  emptyLabel: string;
+  options: string[];
+  onChange: (value: string) => void;
+}) {
+  const items = [
+    { value: "", label: emptyLabel },
+    ...(value && !options.includes(value) ? [{ value, label: `${value} (not in these results)` }] : []),
+    ...options.map((option) => ({ value: option, label: option })),
+  ];
+
+  return (
+    <Select items={items} value={value} onValueChange={(next) => onChange(next ?? "")}>
+      <SelectTrigger aria-label={label} className="catalog-search-filter min-w-0 max-w-full flex-1 sm:flex-none">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent alignItemWithTrigger={false} className="max-w-(--available-width)">
+        {items.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}
+      </SelectContent>
+    </Select>
   );
 }
