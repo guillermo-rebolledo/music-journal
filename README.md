@@ -27,15 +27,15 @@ npm run db:migrate
 npm run dev
 ```
 
-For deployment, set the three environment variables from `.env.example` before building, use an HTTPS app URL and a dedicated database, and apply committed migrations before serving traffic.
+For production deployment, set the three environment variables from `.env.example` before building, use an HTTPS app URL and a dedicated database, and apply committed migrations before serving traffic.
 
 ## Vercel previews
 
-Vercel Preview has separate environment-variable scopes from Production and Development. The build validates `DATABASE_URL`, `BETTER_AUTH_URL` and `BETTER_AUTH_SECRET`; configure them before deploying a PR.
+Vercel Preview has separate environment-variable scopes from Production and Development. Configure the project once for all preview branches.
 
 - Connect the Neon database to Preview and enable **Create database branch for deployment → Preview**. Each deployment must receive an isolated branch connection, rather than the production connection string. See [Neon's preview-branching setup](https://neon.com/docs/guides/vercel-managed-integration#enable-automated-preview-branching-recommended).
 - Generate a separate `BETTER_AUTH_SECRET` for Preview (at least 32 characters), stored as sensitive. Keep the Production secret scoped to Production.
-- Set `BETTER_AUTH_URL` to the preview's HTTPS branch alias, scoped to that Git branch. Use that alias to test authentication.
+- Keep [Vercel system environment variables](https://vercel.com/docs/environment-variables/system-environment-variables) enabled. Better Auth allows the exact hosts in `VERCEL_URL` and `VERCEL_BRANCH_URL` over HTTPS. Production and local development use the configured `BETTER_AUTH_URL`.
 - Apply committed migrations to the preview database if its schema is behind. Redeploy after changing environment scopes; existing deployments retain their original environment.
 
 ## Sign-in
