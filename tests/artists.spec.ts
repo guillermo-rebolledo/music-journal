@@ -16,9 +16,7 @@ async function account(page: Page) {
 }
 
 async function search(page: Page, q: string) {
-  await page.goto("/search/artists");
-  await page.getByLabel("Artist name").fill(q);
-  await page.getByLabel("Artist name").press("Enter");
+  await page.goto(`/search/artists?${new URLSearchParams({ q })}`);
 }
 
 function row(page: Page, detail = "Mexican electronic duo") {
@@ -32,7 +30,7 @@ test("ambiguous artists, concurrent saves, persistence across sessions, private 
   await expect(page.getByText("Keep track of artists you want to explore.")).toBeVisible();
   await page.getByRole("link", { name: "Search artists" }).click();
   await page.getByLabel("Artist name").fill("Shared artist");
-  await page.getByRole("button", { name: "Search", exact: true }).click();
+  await page.getByRole("dialog", { name: "Search results" }).getByRole("link", { name: /Mexican electronic duo/ }).click();
   await expect(row(page)).toBeVisible();
   await expect(row(page, "British folk singer")).toBeVisible();
   await expect(page.getByRole("listitem")).toHaveCount(3);
@@ -162,6 +160,7 @@ test.describe("phone artist flow", () => {
     await page.keyboard.press("Enter");
     await page.getByLabel("Artist name").focus();
     await page.keyboard.type("Sparse artist");
+    await page.getByRole("dialog", { name: "Search results" }).getByRole("link", { name: "Sparse artist" }).focus();
     await page.keyboard.press("Enter");
     const target = row(page, "Sparse artist");
     await target.getByRole("button", { name: "Save artist", exact: true }).focus();
@@ -178,4 +177,25 @@ test.describe("phone artist flow", () => {
     await expect(page.getByText("Keep track of artists you want to explore.")).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
   });
+});
+
+test("live artist suggestions lead to the selected artist's save control", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.emulateMedia({ colorScheme: "dark" });
+  await account(page);
+  await page.goto("/search/artists");
+  const input = page.getByLabel("Artist name");
+  await page.route("**/api/catalog/search?*", (route) => route.abort(), { times: 1 });
+  await input.fill("Shared artist");
+  const popup = page.getByRole("dialog", { name: "Search results" });
+  await expect(popup.getByRole("alert")).toContainText("temporarily unavailable");
+  await popup.getByRole("button", { name: "Try again" }).click();
+  await expect(input).toBeFocused();
+  const bounds = await popup.boundingBox();
+  expect(bounds?.x).toBeGreaterThanOrEqual(0);
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(320);
+  await popup.getByRole("link", { name: /Mexican electronic duo/ }).click();
+  await expect(page).toHaveURL(`/search/artists?q=Shared+artist#artist-${first}`);
+  await expect(popup).toBeHidden();
+  await expect(row(page).getByRole("button", { name: "Save artist", exact: true })).toBeVisible();
 });

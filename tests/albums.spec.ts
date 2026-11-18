@@ -14,9 +14,7 @@ async function account(page: Page) {
 }
 
 async function search(page: Page, q: string) {
-  await page.goto("/search");
-  await page.getByLabel("Album title").fill(q);
-  await page.getByLabel("Album title").press("Enter");
+  await page.goto(`/search?${new URLSearchParams({ q })}`);
 }
 
 test.afterEach(async ({ request }) => { await request.get(`${control}?outage=false`); });
@@ -25,12 +23,12 @@ test("ambiguous albums, concurrent saves, reloads, removal, outages and account 
   await account(page);
   await page.getByRole("link", { name: "Search albums" }).click();
   await page.getByLabel("Album title").fill("Shared title");
-  await page.getByRole("button", { name: "Search", exact: true }).click();
-  await expect(page.getByText("First Artist & Guest · 1998")).toBeVisible();
-  await expect(page.getByText("Second Artist · 2005")).toBeVisible();
-  await expect(page.getByRole("link", { name: "Shared title", exact: true })).toHaveCount(2);
-  await expect(page.getByText("Unknown artist · Year unknown")).toBeVisible();
-  await page.getByRole("link", { name: "Shared title", exact: true }).first().click();
+  const popup = page.getByRole("dialog", { name: "Search results" });
+  await expect(popup.getByText("First Artist & Guest · 1998")).toBeVisible();
+  await expect(popup.getByText("Second Artist · 2005")).toBeVisible();
+  await expect(popup.getByRole("link", { name: /Shared title/ })).toHaveCount(2);
+  await expect(popup.getByText("Unknown artist · Year unknown")).toBeVisible();
+  await popup.getByRole("link", { name: /Shared title.*First Artist/ }).click();
   await expect(page).toHaveURL(`/albums/${first}`);
   await expect(page.getByText("No cover available")).toBeVisible();
   const anotherTab = await page.context().newPage();
@@ -128,8 +126,7 @@ test.describe("phone album flow", () => {
     await page.goto("/search");
     await page.getByLabel("Album title").focus();
     await page.keyboard.type("Sparse album");
-    await page.keyboard.press("Enter");
-    await page.getByRole("link", { name: "Sparse album", exact: true }).focus();
+    await page.getByRole("link", { name: /Sparse album/ }).focus();
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL(`/albums/${sparse}`);
     await expect(page.getByText("Unknown artist · Year unknown")).toBeVisible();
@@ -143,4 +140,80 @@ test.describe("phone album flow", () => {
     await page.keyboard.press("Enter");
     await expect(page.getByRole("button", { name: "Save to Want to Listen", exact: true })).toBeVisible();
   });
+});
+
+test("live album suggestions filter and open by keyboard", async ({ page, request }) => {
+  expect((await request.get("/api/catalog/search?kind=album&q=Shared")).status()).toBe(401);
+  await account(page);
+  await page.goto("/search");
+  await page.keyboard.press("Control+k");
+  const input = page.getByLabel("Album title");
+  await expect(input).toBeFocused();
+  await input.fill("Shared title");
+  const popup = page.getByRole("dialog", { name: "Search results" });
+  await expect(popup.getByRole("link", { name: /Shared title/ })).toHaveCount(2);
+  const searchPanel = page.getByRole("search", { name: "Find albums" });
+  await expect(searchPanel.getByRole("button", { name: "Search", exact: true })).toHaveCount(0);
+  await searchPanel.getByRole("button", { name: "Filters", exact: true }).click();
+  await searchPanel.getByRole("combobox", { name: "Release year" }).click();
+  await page.getByRole("option", { name: "2005" }).click();
+  await expect(popup.getByRole("link")).toHaveCount(1);
+  await input.focus();
+  await input.press("ArrowDown");
+  const result = popup.getByRole("link", { name: /Shared title.*Second Artist.*2005/ });
+  await expect(result).toBeFocused();
+  await result.press("Escape");
+  await expect(popup).toBeHidden();
+  await expect(input).toBeFocused();
+  await input.press("ArrowDown");
+  await expect(result).toBeVisible();
+  await expect(result).toBeFocused();
+  await input.focus();
+  await input.press("Enter");
+  await expect(page).toHaveURL("/albums/22222222-2222-4222-8222-222222222222");
+  await page.goBack();
+  await expect(input).toHaveValue("Shared title");
+  await expect(result).toBeVisible();
+  await expect(searchPanel.getByRole("combobox", { name: "Release year" }).locator('[data-slot="select-value"]')).toHaveText("2005");
+  await page.reload();
+  await expect(result).toBeVisible();
+});
+
+test("live search waits out a provider cooldown before requesting the latest query", async ({ page, request }) => {
+  await account(page);
+  await page.goto("/search");
+  const input = page.getByLabel("Album title");
+  const popup = page.getByRole("dialog", { name: "Search results" });
+  const firstResponse = page.waitForResponse((response) =>
+    response.url().includes("/api/catalog/search?") &&
+    new URL(response.url()).searchParams.get("q") === "throttled");
+  await input.fill("throttled");
+  const coolingDown = await firstResponse;
+  expect(coolingDown.status()).toBe(200);
+  expect(await coolingDown.json()).toMatchObject({ retryAfter: 6 });
+
+  await request.get(`${control}?reset=true`);
+  const latest = `album ${crypto.randomUUID()}`;
+  const statuses: number[] = [];
+  page.on("response", (response) => {
+    if (new URL(response.url()).searchParams.get("q") === latest) statuses.push(response.status());
+  });
+  await input.fill(latest);
+  await expect(popup.getByRole("link", { name: /Shared title/ }).first()).toBeVisible({ timeout: 10000 });
+  expect(statuses).toEqual([200]);
+  expect(await (await request.get(control)).json()).toHaveLength(1);
+});
+
+test("live search retries a throttled query only once", async ({ page }) => {
+  await account(page);
+  await page.goto("/search");
+  let requests = 0;
+  await page.route("**/api/catalog/search?*", (route) => {
+    requests++;
+    return route.fulfill({ json: { error: "The catalog is busy. Please wait a moment and try again.", retryAfter: 1 } });
+  });
+  const popup = page.getByRole("dialog", { name: "Search results" });
+  await page.getByLabel("Album title").fill("Shared title");
+  await expect(popup.getByRole("alert")).toContainText("catalog is busy");
+  expect(requests).toBe(2);
 });
