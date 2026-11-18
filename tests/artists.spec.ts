@@ -109,7 +109,8 @@ test("first save validates identity and retains errors without trusting submitte
   await expect(target.getByRole("alert")).toContainText("This artist could not be found");
   await page.goto("/journal");
   await expect(page.getByText("Keep track of artists you want to explore.")).toBeVisible();
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.getByRole("button", { name: /^Account menu/ }).click();
+    await page.getByRole("menuitem", { name: "Sign out" }).click();
   await expect(page).toHaveURL(/\/sign-in$/);
   await page.goto("/search/artists?q=Shared");
   await expect(page).toHaveURL(/\/sign-in$/);

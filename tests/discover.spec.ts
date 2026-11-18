@@ -23,6 +23,8 @@ test.describe("phone Discover", () => {
       await page.keyboard.press("Tab");
       await expect(page.getByRole("link", { name: "Skip to content" })).toBeFocused();
       await page.keyboard.press("Tab");
+      await expect(page.getByRole("link", { name: "Music Journal" })).toBeFocused();
+      await page.keyboard.press("Tab");
       await expect(page.getByRole("link", { name: "Journal", exact: true })).toBeFocused();
       await page.keyboard.press("Tab");
       await expect(page.getByRole("link", { name: "Discover", exact: true })).toBeFocused();

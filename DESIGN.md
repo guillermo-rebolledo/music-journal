@@ -18,7 +18,7 @@ Source: [Music Journal design system](https://claude.ai/artifact/1q7WDwqqA5LMR9C
 
 ### Theme behavior
 
-Light uses the exact reference `:root` tokens. Dark uses the reference values under `.dark`; the app also follows `prefers-color-scheme` by default. `.light` on `<html>` forces light, `.dark` forces dark. Keep both palettes updated together. New components must work in both themes. There is no persisted theme preference control.
+Light uses the exact reference `:root` tokens. Dark uses the reference values under `.dark`; the app also follows `prefers-color-scheme` by default. `.light` on `<html>` forces light, `.dark` forces dark. Keep both palettes updated together. New components must work in both themes. Listeners pick Light, Dark or System from the Theme submenu in the account menu; `next-themes` persists the choice and sets the class before paint.
 
 ### Review before shipping
 
@@ -67,7 +67,9 @@ Catalog artwork uses a shared square frame with `muted` fill, a `border` edge, a
 
 Catalog search follows Video Game Journal's standalone Catalog layout. The muted panel pairs an icon-led Input with clear and disclosure Buttons. Album filters sit beside the input and expand to a second row with shadcn Select controls. The Base UI Popover aligns to the whole control group and contains search status, retry, and scrollable artwork rows. Search starts at two characters after one second without edits and keeps the query and filters in the URL. If the catalog asks for a brief cooldown, keep the pending state and retry the latest query once after the cooldown. Ctrl/Command+K focuses search, Down Arrow enters the results, Enter opens a result, and Escape closes the popup. Album rows link to detail pages. Artist rows show distinguishing details and link to the matching save control.
 
-Installed: Button, Input, Label, Field, Card, NativeSelect, Select, Separator and Spinner. The reference also defines Textarea, Badge, Checkbox, Switch, Tabs, Dialog, Tooltip and Avatar; add them from the same Base UI registry when a feature needs them. Apply the TE typography layer to new controls, tags and metadata in the shared stylesheet.
+The site header (`components/site-header.tsx`), in the root layout on every page, follows Video Game Journal's header: logo mark and wordmark top left, linking to the Journal; main navigation links and an avatar-triggered account menu top right. The account menu shows who is signed in, links to the Journal, holds the Theme submenu and ends with Sign out. Guests get a person-icon menu with Theme and Sign in. The orange square `.logo-mark` is a placeholder until the real logo exists.
+
+Installed: Button, Input, Label, Field, Card, NativeSelect, Select, Separator, Spinner, DropdownMenu and Avatar. The reference also defines Textarea, Badge, Checkbox, Switch, Tabs, Dialog and Tooltip; add them from the same Base UI registry when a feature needs them. Apply the TE typography layer to new controls, tags and metadata in the shared stylesheet.
 
 ## Credits and sources
 

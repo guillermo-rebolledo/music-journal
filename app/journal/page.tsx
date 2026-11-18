@@ -7,7 +7,6 @@ import { ArtistSummary } from "../artist-summary";
 import { AlbumSummary } from "../album-summary";
 import { redirect } from "next/navigation";
 import { getListener } from "../../lib/auth";
-import { JournalHeader } from "../journal-header";
 
 export const metadata = { title: "Journal | Music Journal" };
 
@@ -25,7 +24,6 @@ export default async function JournalPage() {
 
   return (
     <>
-      <JournalHeader current="journal" />
       <main id="main-content" tabIndex={-1}>
         <h1>Journal</h1>
         <p className="listener"><strong>{listener.name}</strong> · {listener.email}</p>
