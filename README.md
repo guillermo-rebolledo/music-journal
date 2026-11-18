@@ -27,15 +27,15 @@ npm run db:migrate
 npm run dev
 ```
 
-For deployment, set the three environment variables from `.env.example` before building, use an HTTPS app URL and a dedicated database, and apply committed migrations before serving traffic.
+For production deployment, set the three environment variables from `.env.example` before building, use an HTTPS app URL and a dedicated database, and apply committed migrations before serving traffic.
 
 ## Vercel previews
 
-Vercel Preview has separate environment-variable scopes from Production and Development. The build validates `DATABASE_URL`, `BETTER_AUTH_URL` and `BETTER_AUTH_SECRET`; configure them before deploying a PR.
+Vercel Preview has separate environment-variable scopes from Production and Development. Configure the project once for all preview branches.
 
 - Connect the Neon database to Preview and enable **Create database branch for deployment → Preview**. Each deployment must receive an isolated branch connection, rather than the production connection string. See [Neon's preview-branching setup](https://neon.com/docs/guides/vercel-managed-integration#enable-automated-preview-branching-recommended).
 - Generate a separate `BETTER_AUTH_SECRET` for Preview (at least 32 characters), stored as sensitive. Keep the Production secret scoped to Production.
-- Set `BETTER_AUTH_URL` to the preview's HTTPS branch alias, scoped to that Git branch. Use that alias to test authentication.
+- Keep [Vercel system environment variables](https://vercel.com/docs/environment-variables/system-environment-variables) enabled. Better Auth allows the exact hosts in `VERCEL_URL` and `VERCEL_BRANCH_URL` over HTTPS. Production and local development use the configured `BETTER_AUTH_URL`.
 - Apply committed migrations to the preview database if its schema is behind. Redeploy after changing environment scopes; existing deployments retain their original environment.
 
 ## Sign-in
@@ -58,11 +58,15 @@ The browser suite starts a fresh Postgres container on a Docker-assigned loopbac
 
 Search uses MusicBrainz release groups with primary type Album. Common reissues share a release-group detail page. Saving validates that identity against the local Catalog or a MusicBrainz lookup, then persists the title, credited artist, and original year. Want to Listen has a unique listener–album key; actions resolve the listener from the server session. Removal is idempotent and never deletes Catalog metadata.
 
-Apply the new migration before serving this version. Album metadata remains available locally after removal, so existing saved album pages and wishlist actions work during provider outages. Covers use text placeholders; artwork is not enabled pending confirmation of the intended display use.
+Apply the new migration before serving this version. Album metadata remains available locally after removal, so existing saved album pages and wishlist actions work during provider outages.
 
 All app instances must share the same Postgres database. A transaction advisory lock serializes MusicBrainz requests, rechecks a shared cache after acquiring the lock, and coalesces repeated requests. Requests are separated by at least one second after completion, with a four-second upstream timeout, a five-second lock wait, a bounded connection pool/queue, a 1 MB response cap, and at most 20 search results. The provider's Retry-After response blocks further requests across instances. Successful search results are cached for 15 minutes, identity lookups for one day, and errors for three seconds; expired cache entries are pruned on a provider request. Database connection limits remain deployment-specific; tune the app instance count against available Postgres connections.
 
 `MUSICBRAINZ_BASE_URL` can point server-side requests at a trusted MusicBrainz-compatible endpoint (default: `https://musicbrainz.org/ws/2`). The browser suite starts its own local stub through this setting and never calls the live catalog. It covers ambiguous titles, missing metadata, concurrent/replayed saves, two-account isolation, outages, rate limits, timeout recovery, and phone keyboard use. Before beta, separately spot-check the live provider from the deployment host, including multilingual titles.
+
+## Catalog artwork
+
+Album covers use [Cover Art Archive release-group thumbnails](https://musicbrainz.org/doc/Cover_Art_Archive/API). Artist photos match the MusicBrainz artist ID to a Wikidata item, then use its image claim and fetch thumbnail and credit metadata from Wikimedia Commons. Those server lookups reuse the shared provider cache and rate limits. The browser loads thumbnails directly from the image hosts without a referrer. Missing or failed images show an illustrated fallback.
 
 ## Listen dates
 

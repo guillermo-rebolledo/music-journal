@@ -18,6 +18,13 @@ export default defineConfig({
   }, {
     command: "npm run dev -- --hostname 127.0.0.1 --port 3100",
     url: `${baseURL}/sign-in`,
-    env: { BETTER_AUTH_URL: baseURL, MUSICBRAINZ_BASE_URL: "http://127.0.0.1:3101", LISTENBRAINZ_BASE_URL: "http://127.0.0.1:3101" },
+    env: {
+      BETTER_AUTH_URL: baseURL,
+      MUSICBRAINZ_BASE_URL: "http://127.0.0.1:3101",
+      LISTENBRAINZ_BASE_URL: "http://127.0.0.1:3101",
+      COVER_ART_ARCHIVE_BASE_URL: "http://127.0.0.1:3101",
+      WIKIDATA_BASE_URL: "http://127.0.0.1:3101/wikidata",
+      COMMONS_BASE_URL: "http://127.0.0.1:3101/commons",
+    },
   }],
 });

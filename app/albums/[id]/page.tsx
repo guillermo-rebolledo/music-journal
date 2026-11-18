@@ -7,6 +7,7 @@ import { CatalogError, catalogMessages, findAlbum } from "../../../lib/catalog";
 import { db } from "../../../lib/db";
 import { listen, wantToListen } from "../../../lib/schema";
 import { todayUTC } from "../../../lib/listen-date";
+import { AlbumArtwork } from "../../album-artwork";
 import { ListenForm } from "./listen-form";
 import { WantToListenForm } from "./want-to-listen-form";
 
@@ -28,7 +29,7 @@ export default async function AlbumPage({ params }: { params: Promise<{ id: stri
     <Link href="/journal">Back to Journal</Link>
     <h1>{album.title}</h1>
     <p>{album.creditedArtist} · {album.originalYear ?? "Year unknown"}</p>
-    <p className="cover-placeholder">No cover available</p>
+    <AlbumArtwork id={album.id} detail />
     <WantToListenForm albumId={album.id} saved={!!saved} />
     <ListenForm albumId={album.id} today={todayUTC()} submissionKey={randomUUID()} />
     <section aria-labelledby="album-listens" className="results-heading">

@@ -11,6 +11,7 @@ const artists = [
   { id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", name: "Shared artist", disambiguation: "British folk singer" },
   { id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", name: "Sparse artist" },
 ];
+const portraitArtist = { id: "abababab-abab-4bab-8bab-abababababab", name: "Portrait artist" };
 const related = [
   { id: "14141414-1414-4414-8414-141414141414", name: "Related studio artist" },
   { id: "ffffffff-ffff-4fff-8fff-ffffffffffff", name: "Related fallback artist" },
@@ -42,6 +43,33 @@ createServer((req, res) => {
     res.end(JSON.stringify(requests)); return;
   }
   if (url.pathname === "/health") { res.end("{}"); return; }
+  // Optional artwork has its own providers and is excluded from catalog call counts.
+  if (url.pathname === "/wikidata/api.php") {
+    const search = url.searchParams.get("srsearch");
+    if (search === `haswbstatement:P434=${portraitArtist.id}`) {
+      res.end(JSON.stringify({ query: { search: [{ title: "Q123" }] } }));
+    } else if (url.searchParams.get("entity") === "Q123") {
+      res.end(JSON.stringify({ claims: { P18: [{ rank: "normal", mainsnak: { datavalue: { value: "Artist.jpg" } } }] } }));
+    } else {
+      res.end(JSON.stringify({ query: { search: [] } }));
+    }
+    return;
+  }
+  if (url.pathname === "/commons/api.php") {
+    res.end(JSON.stringify({ query: { pages: [{ imageinfo: [{
+      thumburl: "https://thumb.wikimedia.org/wikipedia/commons/thumb/example/250px-Artist.jpg",
+      descriptionurl: "https://commons.wikimedia.org/wiki/File:Artist.jpg",
+      extmetadata: {
+        Artist: { value: "<a>Photo Author</a>" },
+        LicenseShortName: { value: "CC BY 4.0" },
+        LicenseUrl: { value: "https://creativecommons.org/licenses/by/4.0/" },
+      },
+    }] }] } }));
+    return;
+  }
+  if (/^\/release-group\/[a-f0-9-]+\/front-(250|500)$/.test(url.pathname)) {
+    res.writeHead(404); res.end("{}"); return;
+  }
   requests.push({ url: req.url, time: Date.now(), agent: req.headers["user-agent"], ...(url.pathname.startsWith("/1/") && { privateHeaders: Boolean(req.headers.cookie || req.headers.authorization) }) });
   const query = url.searchParams.get("query") || "";
   if (outage || query.includes("failure")) { res.writeHead(502); res.end("{}"); return; }
@@ -77,6 +105,9 @@ createServer((req, res) => {
     res.end(JSON.stringify({ "release-groups": results })); return;
   }
   if (url.pathname === "/artist/") {
+    if (query.includes("artwork fixture")) {
+      res.end(JSON.stringify({ artists: [portraitArtist, artists[1]] })); return;
+    }
     if (query.includes("discovery test seeds")) {
       res.end(JSON.stringify({ artists: related.slice(0, 2) })); return;
     }
