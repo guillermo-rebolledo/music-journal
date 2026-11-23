@@ -8,8 +8,8 @@ const direct = "55555555-5555-4555-8555-555555555555";
 const control = "http://127.0.0.1:3101/control";
 const today = () => new Date().toISOString().slice(0, 10);
 const history = (page: Page) => page.getByRole("region", { name: "Your listens" });
-const recent = (page: Page) => page.getByRole("region", { name: "Recent listens" });
-const queue = (page: Page) => page.getByRole("region", { name: "Want to Listen" });
+const recent = (page: Page) => page.getByRole("tabpanel", { name: /Recent listens/ });
+const queue = (page: Page) => page.getByRole("tabpanel", { name: /Want to Listen/ }).getByRole("listitem");
 const logButton = (page: Page) => page.getByRole("button", { name: "Log listen", exact: true });
 
 async function account(page: Page) {
@@ -54,13 +54,16 @@ test("search, save, log, reload, backdate, repeat, ordering and account isolatio
   await page.goto(`/albums/${second}`);
   await log(page, "2010-03-04");
   await page.goto("/journal");
-  await expect(recent(page).locator("time")).toHaveText([today(), "2010-03-04", "2000-02-29", "2000-02-29"]);
-  await expect(queue(page).getByRole("link")).toHaveCount(0);
+  await expect(recent(page).locator("time:visible")).toHaveText([today(), "2010-03-04", "2000-02-29", "2000-02-29"]);
+  await page.goto("/journal?tab=want-to-listen");
+  await expect(page.getByText("Keep track of albums you want to hear.")).toBeVisible();
+  await expect(queue(page)).toHaveCount(0);
 
   const other = await browser.newContext({ baseURL });
   try {
     const otherPage = await other.newPage();
     await account(otherPage);
+    await expect(otherPage.getByText("Albums you log will appear here by listen date.")).toBeVisible();
     await expect(recent(otherPage).locator("time")).toHaveCount(0);
     await otherPage.goto(`/albums/${first}?listenerId=someone-else`);
     await expect(history(otherPage).locator("time")).toHaveCount(0);
@@ -80,12 +83,14 @@ test("direct logging retains Catalog details and saved albums can be logged duri
   await expect(page.getByText("Direct Artist · 2012")).toBeVisible();
   await page.getByRole("button", { name: "Save to Want to Listen", exact: true }).click();
   await expect(page.getByRole("button", { name: "Remove from Want to Listen" })).toBeVisible();
-  await page.goto("/journal");
+  await page.goto("/journal?tab=want-to-listen");
   await queue(page).getByRole("link").click();
   await log(page);
   await page.goto("/journal");
-  await expect(recent(page).locator("time")).toHaveCount(2);
-  await expect(queue(page).getByRole("link")).toHaveCount(0);
+  await expect(recent(page).locator("time:visible")).toHaveCount(2);
+  await page.goto("/journal?tab=want-to-listen");
+  await expect(page.getByText("Keep track of albums you want to hear.")).toBeVisible();
+  await expect(queue(page)).toHaveCount(0);
   expect(await (await request.get(control)).json()).toEqual([]);
 });
 

@@ -2,6 +2,9 @@
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
+/* The registry's Tabs use data-horizontal/data-vertical; Base UI exposes orientation as data-orientation. */
+@custom-variant data-horizontal (&[data-orientation="horizontal"]);
+@custom-variant data-vertical (&[data-orientation="vertical"]);
 
 @theme inline {
   --color-background: var(--background);
@@ -301,9 +304,16 @@
   .meta, .album-row p, .listener { font: var(--type-meta); font-variant-numeric: tabular-nums; color: var(--muted-foreground); }
   .auth-switch, .field-hint { color: var(--muted-foreground); font: var(--type-small); margin-top: var(--space-4); }
   .listener { overflow-wrap: anywhere; }
-  .journal-sections { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr)); align-items: start; gap: var(--space-6); margin-top: var(--space-8); }
-  .journal-sections section { min-width: 0; }
-  .journal-sections p, .artist-row p { color: var(--muted-foreground); }
+  .artist-row p { color: var(--muted-foreground); }
+  /* Journal Ledger rows: fixed date column and 64px cover frame, so nothing moves as covers load. */
+  .ledger-row { display: grid; grid-template-columns: 4rem minmax(0, 1fr); align-items: center; gap: 0 var(--space-4); padding-block: var(--space-3); border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
+  .ledger-row a { font-weight: 600; }
+  .ledger-date { display: none; color: var(--muted-foreground); }
+  @media (min-width: 40rem) {
+    .ledger-row { grid-template-columns: 6.5rem 4rem minmax(0, 1fr); }
+    .ledger-date { display: block; }
+    .ledger-inline-date { display: none; }
+  }
   .results-heading { margin-top: var(--space-8); }
   .catalog-search-input:focus-within { border-color: var(--ring); box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent); }
   .catalog-search-results { max-height: min(26.25rem, max(7.5rem, calc(var(--available-height) - 10rem))); scroll-padding: 4px; }
@@ -344,7 +354,7 @@
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
 
 /* The TE layer intentionally overrides the registry's default type utilities. */
-[data-slot="button"], [data-slot="label"], [data-slot="field-label"], [data-slot="select-trigger"] {
+[data-slot="button"], [data-slot="label"], [data-slot="field-label"], [data-slot="select-trigger"], [data-slot="tabs-trigger"] {
   font: var(--type-control);
   letter-spacing: .05em;
   text-transform: uppercase;
@@ -353,3 +363,28 @@
 [data-slot="card-description"] { font: var(--type-meta); font-variant-numeric: tabular-nums; }
 .catalog-search-filter[data-slot="select-trigger"] { height: auto; min-height: 2.75rem; white-space: normal; }
 .catalog-search-filter [data-slot="select-value"] { display: block; line-clamp: unset; -webkit-line-clamp: unset; overflow-wrap: anywhere; }
+
+/* Journal Ledger tabs. The selected rule is static CSS on the active tab, so it is correct in server HTML with no shift. */
+[data-variant="ledger"] [data-slot="tabs-trigger"] {
+  flex: 1 1 0;
+  flex-direction: column-reverse;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: var(--space-1);
+  height: auto;
+  min-height: 2.75rem;
+  padding: var(--space-2) var(--space-1) var(--space-3);
+  border: 0;
+  border-radius: 0;
+  color: var(--muted-foreground);
+  text-align: left;
+  white-space: normal;
+  transition: color 150ms ease-out;
+}
+[data-variant="ledger"] [data-slot="tabs-trigger"]:hover, [data-variant="ledger"] [data-slot="tabs-trigger"][data-active] { color: var(--foreground); }
+[data-variant="ledger"] [data-slot="tabs-trigger"]::after { inset-inline: 0; bottom: -1px; height: 2px; background: var(--primary); transition: none; }
+[data-variant="ledger"] [data-slot="tabs-trigger"][aria-selected="true"]::after { opacity: 1; }
+[data-variant="ledger"] [data-slot="tabs-trigger"]:focus-visible { outline: 1px solid var(--ring); outline-offset: -1px; box-shadow: inset 0 0 0 4px color-mix(in oklch, var(--ring) 50%, transparent); }
+@media (min-width: 40rem) { [data-variant="ledger"] [data-slot="tabs-trigger"] { flex: none; padding-right: var(--space-8); } }
+.tabs-label { font: var(--type-control); letter-spacing: .05em; text-transform: uppercase; overflow-wrap: anywhere; }
+.tabs-count { font: 400 1.5rem/1 var(--font-mono); font-variant-numeric: tabular-nums; }

@@ -27,6 +27,7 @@ test.afterEach(async ({ request }) => { await request.get(`${control}?outage=fal
 
 test("ambiguous artists, concurrent saves, persistence across sessions, private removal during outages", async ({ page, browser, baseURL, request }) => {
   const email = await account(page);
+  await page.getByRole("tab", { name: /^Saved Artists/ }).click();
   await expect(page.getByText("Keep track of artists you want to explore.")).toBeVisible();
   await page.getByRole("link", { name: "Search artists" }).click();
   await page.getByLabel("Artist name").fill("Shared artist");
@@ -49,7 +50,7 @@ test("ambiguous artists, concurrent saves, persistence across sessions, private 
       data: mutation.postDataBuffer()!, headers: { "content-type": headers["content-type"], "next-action": headers["next-action"], origin: baseURL! },
     })));
     for (const reply of replies) expect(reply.ok()).toBeTruthy();
-    await page.goto("/journal");
+    await page.goto("/journal?tab=saved-artists");
     await page.reload();
     await expect(row(page)).toHaveCount(1);
     const lookups = await (await request.get(control)).json();
@@ -61,11 +62,12 @@ test("ambiguous artists, concurrent saves, persistence across sessions, private 
     await returning.getByLabel("Email").fill(email);
     await returning.getByLabel("Password").fill(password);
     await returning.getByRole("button", { name: "Sign in", exact: true }).click();
+    await returning.getByRole("tab", { name: /^Saved Artists/ }).click();
     await expect(row(returning)).toBeVisible();
 
     const second = await other.newPage();
     await account(second);
-    await second.goto(`/journal?listenerId=${email}`);
+    await second.goto(`/journal?tab=saved-artists&listenerId=${email}`);
     await expect(row(second)).toHaveCount(0);
     await search(second, "Shared artist");
     await expect(row(second).getByRole("button", { name: "Save artist", exact: true })).toBeVisible();
@@ -81,7 +83,7 @@ test("ambiguous artists, concurrent saves, persistence across sessions, private 
     await expect(page.getByText("Keep track of artists you want to explore.")).toBeVisible();
     await returning.reload();
     await expect(row(returning)).toHaveCount(0);
-    await second.goto("/journal");
+    await second.goto("/journal?tab=saved-artists");
     await expect(row(second)).toBeVisible();
     await search(page, "Shared artist");
     await row(page).getByRole("button", { name: "Save artist", exact: true }).click();
@@ -97,7 +99,7 @@ test("first save validates identity and retains errors without trusting submitte
   await request.get(`${control}?outage=true`);
   await target.getByRole("button", { name: "Save artist", exact: true }).click();
   await expect(target.getByRole("alert")).toContainText("temporarily unavailable");
-  await page.goto("/journal");
+  await page.goto("/journal?tab=saved-artists");
   await expect(page.getByText("Keep track of artists you want to explore.")).toBeVisible();
   await request.get(`${control}?outage=false`);
   await search(page, "Shared artist");
@@ -107,7 +109,7 @@ test("first save validates identity and retains errors without trusting submitte
   await target.locator('input[name="artistId"]').evaluate((input: HTMLInputElement) => { input.value = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"; });
   await target.getByRole("button", { name: "Save artist", exact: true }).click();
   await expect(target.getByRole("alert")).toContainText("This artist could not be found");
-  await page.goto("/journal");
+  await page.goto("/journal?tab=saved-artists");
   await expect(page.getByText("Keep track of artists you want to explore.")).toBeVisible();
   await page.getByRole("button", { name: /^Account menu/ }).click();
     await page.getByRole("menuitem", { name: "Sign out" }).click();
@@ -157,6 +159,7 @@ test.describe("phone artist flow", () => {
   test.use({ viewport: { width: 320, height: 640 }, isMobile: true, hasTouch: true });
   test("keyboard search, save and removal work without disambiguation", async ({ page }) => {
     await account(page);
+    await page.getByRole("tab", { name: /^Saved Artists/ }).click();
     await page.getByRole("link", { name: "Search artists" }).focus();
     await page.keyboard.press("Enter");
     await page.getByLabel("Artist name").focus();

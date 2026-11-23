@@ -8,6 +8,6 @@ export function ArtistSummary({ artist, saved }: { artist: Artist; saved: boolea
       <strong>{artist.name}</strong>
       {artist.disambiguation && <p>{artist.disambiguation}</p>}
     </ArtistArtwork>
-    <SavedArtistForm artistId={artist.id} saved={saved} />
+    <SavedArtistForm artistId={artist.id} artistName={artist.name} saved={saved} />
   </li>;
 }
