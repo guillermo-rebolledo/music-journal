@@ -46,13 +46,15 @@ test("ambiguous albums, concurrent saves, reloads, removal, outages and account 
   await anotherTab.getByRole("button", { name: "Save to Want to Listen", exact: true }).click();
   await page.reload();
   await expect(page.getByRole("button", { name: "Remove from Want to Listen" })).toBeVisible();
-  await page.goto("/journal");
+  await page.goto("/journal?tab=want-to-listen");
   await expect(page.getByRole("link", { name: "Shared title", exact: true })).toHaveCount(1);
 
   const other = await browser.newContext({ baseURL });
   try {
     const second = await other.newPage();
     await account(second);
+    await second.goto("/journal?tab=want-to-listen");
+    await expect(second.getByText("Keep track of albums you want to hear.")).toBeVisible();
     await expect(second.getByRole("link", { name: "Shared title", exact: true })).toHaveCount(0);
     await second.goto(`/albums/${first}?listenerId=someone-else`);
     await expect(second.getByRole("button", { name: "Save to Want to Listen", exact: true })).toBeVisible();
@@ -69,7 +71,8 @@ test("ambiguous albums, concurrent saves, reloads, removal, outages and account 
     await expect(page.getByRole("button", { name: "Remove from Want to Listen" })).toBeVisible();
     await page.getByRole("button", { name: "Remove from Want to Listen" }).click();
     await expect(page.getByRole("button", { name: "Save to Want to Listen", exact: true })).toBeVisible();
-    await page.goto("/journal");
+    await page.goto("/journal?tab=want-to-listen");
+    await expect(page.getByText("Keep track of albums you want to hear.")).toBeVisible();
     await expect(page.getByRole("link", { name: "Shared title", exact: true })).toHaveCount(0);
     await second.reload();
     await expect(second.getByRole("button", { name: "Remove from Want to Listen" })).toBeVisible();

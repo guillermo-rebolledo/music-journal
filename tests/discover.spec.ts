@@ -68,8 +68,9 @@ test("saving, removing and logging starter albums updates only the current liste
   };
   const save = page.getByRole("button", { name: "Save to Want to Listen", exact: true });
   const remove = page.getByRole("button", { name: "Remove from Want to Listen", exact: true });
-  const queue = page.getByRole("region", { name: "Want to Listen" });
-  const recent = page.getByRole("region", { name: "Recent listens" });
+  const queue = page.getByRole("tabpanel", { name: /Want to Listen/ });
+  const recent = page.getByRole("tabpanel", { name: /Recent listens/ });
+  const showQueue = () => page.getByRole("tab", { name: /^Want to Listen/ }).click();
 
   await discover();
   await starter("In Rainbows").click();
@@ -78,6 +79,7 @@ test("saving, removing and logging starter albums updates only the current liste
 
   await journal();
   await page.reload();
+  await showQueue();
   await expect(queue.getByRole("link", { name: "In Rainbows" })).toBeVisible();
   await discover();
   await expect(starter("In Rainbows")).toHaveCount(0);
@@ -91,6 +93,7 @@ test("saving, removing and logging starter albums updates only the current liste
   await journal();
   await page.reload();
   await expect(recent.getByRole("link", { name: "Getz / Gilberto" })).toBeVisible();
+  await showQueue();
   await expect(queue.getByRole("link", { name: "Getz / Gilberto" })).toHaveCount(0);
   await discover();
   await expect(starter("Getz / Gilberto")).toHaveCount(0);
@@ -116,10 +119,12 @@ test("saving, removing and logging starter albums updates only the current liste
   }
 
   await page.getByRole("navigation").getByRole("link", { name: "Journal", exact: true }).click();
+  await showQueue();
   await queue.getByRole("link", { name: "In Rainbows" }).click();
   await remove.click();
   await expect(save).toBeVisible();
   await journal();
+  await showQueue();
   await expect(queue.getByRole("link", { name: "In Rainbows" })).toHaveCount(0);
   await discover();
   await expect(starter("In Rainbows")).toBeVisible();
@@ -181,9 +186,11 @@ test("Discover suggests released albums, refreshes after journal actions, and sc
   await expect(shelf.getByRole("link", { name: "Lower ranked album" })).toHaveCount(0);
 
   await page.goto("/journal");
-  await expect(page.getByRole("region", { name: "Want to Listen" }).getByRole("link", { name: "Popular album" })).toBeVisible();
-  await expect(page.getByRole("region", { name: "Recent listens" }).getByRole("link", { name: "Lower ranked album" })).toBeVisible();
-  await expect(page.getByRole("region", { name: "Saved Artists" }).getByText("Related studio artist")).toBeVisible();
+  await expect(page.getByRole("tabpanel", { name: /Recent listens/ }).getByRole("link", { name: "Lower ranked album" })).toBeVisible();
+  await page.getByRole("tab", { name: /^Want to Listen/ }).click();
+  await expect(page.getByRole("tabpanel", { name: /Want to Listen/ }).getByRole("link", { name: "Popular album" })).toBeVisible();
+  await page.getByRole("tab", { name: /^Saved Artists/ }).click();
+  await expect(page.getByRole("tabpanel", { name: /Saved Artists/ }).getByText("Related studio artist")).toBeVisible();
 
   const other = await browser.newContext({ baseURL });
   try {

@@ -24,7 +24,7 @@ export default async function ArtistSearchPage({ searchParams }: { searchParams:
   }
   const saved = new Set(q && !error ? (await db.select({ id: savedArtist.artistId }).from(savedArtist).where(eq(savedArtist.listenerId, listener.id))).map((row) => row.id) : []);
   return <main id="main-content" tabIndex={-1}>
-    <Link href="/journal">Back to Journal</Link>
+    <Link href="/journal?tab=saved-artists">Back to Journal</Link>
     <p><Link href="/search">Search albums</Link></p>
     <h1>Search artists</h1>
     <MusicSearch kind="artist">

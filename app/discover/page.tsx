@@ -92,7 +92,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                   {savedIds.has(artist.id) ? (
                     <p>Saved to Saved Artists</p>
                   ) : (
-                    <SavedArtistForm artistId={artist.id} saved={false} />
+                    <SavedArtistForm artistId={artist.id} artistName={artist.name} saved={false} />
                   )}
                   {album ? <ul className="album-list suggestion-album"><AlbumSummary album={album} /></ul> : <p>No album suggestion available.</p>}
                 </li>
