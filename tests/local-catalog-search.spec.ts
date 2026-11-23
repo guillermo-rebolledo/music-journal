@@ -24,6 +24,16 @@ function importFixture(version: "v1" | "v2") {
         `${i}\t00000000-0000-0000-0002-${id}\tShared title\t1\t${i}\t1\t\\N\t\\N\t\\N\t\\N\t\t0\t-1\t\\N\n`);
       appendFileSync(join(fixture, "mbdump", "release_country"), `${i}\t1\t1998\t\\N\t\\N\n`);
     }
+    // Saturate every candidate branch for this title before introducing a rare credit/year.
+    for (let i = 1000; i <= 1600; i++) {
+      const id = String(i).padStart(12, "0");
+      const rare = i === 1600;
+      appendFileSync(join(fixture, "mbdump", "release_group"),
+        `${i}\t00000000-0000-0000-0001-${id}\tCommon filtered title\t${rare ? 2 : 1}\t1\t\t0\t\\N\n`);
+      appendFileSync(join(fixture, "mbdump", "release"),
+        `${i}\t00000000-0000-0000-0002-${id}\tCommon filtered title\t${rare ? 2 : 1}\t${i}\t1\t\\N\t\\N\t\\N\t\\N\t\t0\t-1\t\\N\n`);
+      appendFileSync(join(fixture, "mbdump", "release_country"), `${i}\t1\t${rare ? 2005 : 1998}\t\\N\t\\N\n`);
+    }
     execFileSync(process.execPath, ["scripts/catalog-snapshot.mjs", "import", "--fixture", fixture], {
       env: { ...process.env, CATALOG_DATABASE_URL: process.env.DATABASE_URL, CATALOG_ALLOW_FIXTURES: "1" },
     });
@@ -87,6 +97,26 @@ test("local Catalog ranking, filters and lookups work during a MusicBrainz outag
       matches: [{ id: "22222222-2222-4222-8222-222222222222" }],
       choices: { years: ["2005", "1998"], artists: ["First Artist & Guest", "Second Artist"] },
     });
+    const common = "Common filtered title";
+    const rare = "00000000-0000-0000-0001-000000001600";
+    const { matches: commonMatches, choices } = await (await search(common)).json();
+    expect(commonMatches).toHaveLength(20);
+    expect(commonMatches.map(({ id }: { id: string }) => id)).not.toContain(rare);
+    for (const filters of [{ year: "2005" }, { artist: "Second Artist" }, { year: "2005", artist: "Second Artist" }]) {
+      expect(await (await search(common, "album", filters)).json()).toMatchObject({ matches: [{ id: rare }], choices });
+    }
+    expect((await (await search(common, "album", { year: "1998" })).json()).matches).toHaveLength(20);
+    await page.goto("/search?q=Common+filtered+title&year=2005&artist=Second+Artist");
+    await expect(page.locator(".album-list a").filter({ hasText: common })).toHaveAttribute("href", `/albums/${rare}`);
+
+    for (const filters of ["artist=&year=", "artist=Second+Artist&artist=Ignored&year=2005&year=1998"]) {
+      const query = `q=Common+filtered+title&${filters}`;
+      const response = await page.request.get(`/api/catalog/search?kind=album&${query}`);
+      expect((await response.json()).matches).toEqual(commonMatches);
+      await page.goto(`/search?${query}`);
+      await expect(page.locator(".album-list a").filter({ hasText: common })).toHaveCount(20);
+    }
+
     await page.setViewportSize({ width: 320, height: 800 });
     await page.goto("/search?q=Shared+title&year=2005&artist=Second+Artist");
     await expect(page.getByRole("link", { name: "Shared title", exact: true })).toHaveCount(1);

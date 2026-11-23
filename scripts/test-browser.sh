@@ -1,6 +1,8 @@
 #!/bin/sh
 set -eu
 
+export CATALOG_SOURCE="${CATALOG_SOURCE:-remote}"
+
 container=$(docker run --detach --rm --publish 127.0.0.1::5432 \
   --env POSTGRES_USER=journal --env POSTGRES_PASSWORD=journal \
   --env POSTGRES_DB=music_journal_test postgres:17-alpine)

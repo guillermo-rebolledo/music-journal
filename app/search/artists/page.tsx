@@ -3,7 +3,8 @@ import { maxSearchLength, searchHref } from "@/lib/catalog-search";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getListener } from "../../../lib/auth";
-import { CatalogError, catalogMessages, getCatalogGeneration, searchArtists } from "../../../lib/catalog";
+import { CatalogError, catalogMessages, searchArtists } from "../../../lib/catalog";
+import { pinCatalogGeneration } from "../../../lib/catalog-identity";
 import { getSavedArtistIds } from "../../../lib/journal";
 import { ArtistSummary } from "../../artist-summary";
 
@@ -19,9 +20,9 @@ export default async function ArtistSearchPage({ searchParams }: { searchParams:
   let saved = new Set<string>();
   if (q && !error) {
     try {
-      const generation = await getCatalogGeneration();
+      const generation = await pinCatalogGeneration();
       artists = await searchArtists(q, generation);
-      if (artists.length) saved = await getSavedArtistIds(listener.id, generation);
+      if (artists.length) saved = await getSavedArtistIds(listener.id, generation, artists.map(({ id }) => id));
     } catch (cause) {
       if (!(cause instanceof CatalogError)) throw cause;
       error = cause.kind === "missing" ? "This artist could not be found in the catalog." : catalogMessages[cause.kind];

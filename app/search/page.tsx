@@ -1,5 +1,5 @@
 import { MusicSearch } from "@/components/music-search";
-import { maxSearchLength, searchHref } from "@/lib/catalog-search";
+import { albumFilters, maxSearchLength, searchHref } from "@/lib/catalog-search";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getListener } from "../../lib/auth";
@@ -8,14 +8,11 @@ import { AlbumSummary } from "../album-summary";
 
 export const metadata = { title: "Search albums | Music Journal" };
 
-export default async function SearchPage({ searchParams }: { searchParams: Promise<{ q?: string; search?: string; artist?: string; year?: string }> }) {
+export default async function SearchPage({ searchParams }: { searchParams: Promise<{ q?: string; search?: string; artist?: string | string[]; year?: string | string[] }> }) {
   if (!await getListener()) redirect("/sign-in");
   const params = await searchParams;
   const q = params.search !== "1" && typeof params.q === "string" ? params.q.trim() : "";
-  const filters = {
-    artist: typeof params.artist === "string" ? params.artist : undefined,
-    year: typeof params.year === "string" ? params.year : undefined,
-  };
+  const filters = albumFilters(params);
   let albums: Awaited<ReturnType<typeof searchAlbums>> = [];
   let error = q.length > maxSearchLength ? `Use an album title of ${maxSearchLength} characters or fewer.` : "";
   if (q && !error) {

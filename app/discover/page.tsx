@@ -5,8 +5,8 @@ import Link from "next/link";
 import { eq, inArray } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { getListener } from "../../lib/auth";
-import { CatalogError, getCatalogGeneration, isAlbumId, type Artist } from "../../lib/catalog";
-import { catalogCanonicalIds } from "../../lib/catalog-identity";
+import { CatalogError, isAlbumId, type Artist } from "../../lib/catalog";
+import { catalogCanonicalIds, pinCatalogGeneration } from "../../lib/catalog-identity";
 import { relatedArtists, suggestedAlbum, untriedAlbums } from "../../lib/discover";
 import { db } from "../../lib/db";
 import { album, artist, savedArtist } from "../../lib/schema";
@@ -32,10 +32,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
     ? requestedSeed.toLowerCase()
     : undefined;
   const [generation, storedArtists, starterAlbums] = await Promise.all([
-    getCatalogGeneration().catch((error: unknown) => {
-      if (!(error instanceof CatalogError)) throw error;
-      return null;
-    }),
+    pinCatalogGeneration(),
     db.select({ id: artist.id, name: artist.name, disambiguation: artist.disambiguation })
       .from(savedArtist).innerJoin(artist, eq(savedArtist.artistId, artist.id))
       .where(eq(savedArtist.listenerId, listener.id)).orderBy(artist.name, artist.disambiguation, artist.id),

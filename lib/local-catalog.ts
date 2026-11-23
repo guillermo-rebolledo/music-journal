@@ -8,8 +8,6 @@ import { CatalogError } from "./provider";
 
 const minimumSimilarity = 0.42;
 
-export const usesLocalCatalog = () => process.env.CATALOG_SOURCE === "local";
-
 async function readSnapshot(client: PoolClient) {
   const { rows } = await client.query<{ generation: number; version: string; ageSeconds: number }>(`
     SELECT s.generation, s.version,
@@ -58,15 +56,6 @@ async function read<T>(operation: string, run: (client: PoolClient, info: ReadIn
   } finally {
     console.info("Catalog read", { source: "local", operation, ...info, elapsedMs: Math.round(performance.now() - start) });
   }
-}
-
-export function localCatalogGeneration() {
-  return read("generation", async (client, info) => {
-    const snapshot = await readSnapshot(client);
-    if (!snapshot) info.outcome = "index-unavailable";
-    Object.assign(info, snapshot);
-    return snapshot?.generation ?? null;
-  });
 }
 
 function inGeneration<T>(
@@ -124,8 +113,51 @@ export async function searchLocal(kind: SearchKind, q: string, { artist, year, g
   const terms = `catalog.${kind}_term`;
   // shortcut: common terms contribute a bounded sample per index branch. Tune
   // budgets against the labeled corpus if common prefixes lose useful matches.
-  // Canonical exact matches lead, followed by other exact, compact, prefix,
-  // all-token, and trigram matches. Re-score every candidate with the same tiers.
+  const filtered = album && Boolean(artist || year);
+  const filterYear = year ? (/^[1-9]\d{0,3}$/.test(year) ? Number(year) : 0) : null;
+
+  // Each branch applies Album constraints before taking its bounded index sample.
+  const candidateIds = (filter = "") => `
+      SELECT mbid FROM input i CROSS JOIN LATERAL (
+        SELECT t.mbid FROM ${terms} t WHERE t.generation = $1 ${filter}
+          AND t.match_key OPERATOR(pg_catalog.~>=~) i.key AND t.match_key OPERATOR(pg_catalog.~<=~) i.key
+        LIMIT 512
+      ) exact
+      UNION
+      SELECT mbid FROM input i CROSS JOIN LATERAL (
+        SELECT t.mbid FROM ${terms} t WHERE t.generation = $1 ${filter} AND t.compact_key = i.compact LIMIT 256
+      ) exact_compact
+      UNION
+      SELECT mbid FROM anchors p CROSS JOIN LATERAL (
+        SELECT t.mbid FROM ${terms} t WHERE t.generation = $1 ${filter}
+          AND t.match_key OPERATOR(pg_catalog.~>=~) p.key
+          AND t.match_key OPERATOR(pg_catalog.~<~) (p.key || chr(1114111))
+        LIMIT 128
+      ) prefix
+      UNION
+      SELECT mbid FROM input i CROSS JOIN LATERAL (
+        SELECT t.mbid FROM ${terms} t WHERE t.generation = $1 ${filter}
+          AND t.compact_key OPERATOR(pg_catalog.~>=~) i.compact
+          AND t.compact_key OPERATOR(pg_catalog.~<~) (i.compact || chr(1114111))
+        LIMIT 128
+      ) compact_prefix
+      UNION
+      SELECT mbid FROM (SELECT key FROM input WHERE length(key) >= 5) i CROSS JOIN LATERAL (
+        SELECT t.mbid FROM ${terms} t WHERE t.generation = $1 ${filter}
+          AND t.match_key OPERATOR(public.%) i.key
+        ORDER BY t.match_key OPERATOR(public.<->) i.key LIMIT 128
+      ) fuzzy
+  `;
+  // With only a credit filter, probe the Album primary key for each indexed term.
+  const albumConstraint = `AND EXISTS (
+    SELECT FROM catalog.album eligible WHERE eligible.generation = $1 AND eligible.mbid = t.mbid
+      AND ($3::text IS NULL OR eligible.credited_artist = $3)
+      AND ($4::smallint IS NULL OR eligible.release_year = $4)
+      ${year ? "" : "OFFSET 0"}
+  )`;
+
+  const choiceRows = filtered ? "choices" : "scored";
+  // Keep the entity fetch keyed to the bounded candidate IDs instead of scanning the projection.
   const text = `
     WITH input AS MATERIALIZED (
       SELECT key, replace(key, ' ', '') AS compact, string_to_array(key, ' ') AS words
@@ -137,39 +169,17 @@ export async function searchLocal(kind: SearchKind, q: string, { artist, year, g
         SELECT word FROM (SELECT DISTINCT word FROM unnest(i.words) AS word WHERE length(word) >= 3) distinct_words
         ORDER BY length(word) DESC, word LIMIT 6
       ) words
-    ), candidates AS MATERIALIZED (
-      SELECT mbid FROM input i CROSS JOIN LATERAL (
-        SELECT t.mbid FROM ${terms} t WHERE t.generation = $1
-          AND t.match_key OPERATOR(pg_catalog.~>=~) i.key AND t.match_key OPERATOR(pg_catalog.~<=~) i.key
-        LIMIT 512
-      ) exact
-      UNION
-      SELECT mbid FROM input i CROSS JOIN LATERAL (
-        SELECT t.mbid FROM ${terms} t WHERE t.generation = $1 AND t.compact_key = i.compact LIMIT 256
-      ) exact_compact
-      UNION
-      SELECT mbid FROM anchors p CROSS JOIN LATERAL (
-        SELECT t.mbid FROM ${terms} t WHERE t.generation = $1
-          AND t.match_key OPERATOR(pg_catalog.~>=~) p.key
-          AND t.match_key OPERATOR(pg_catalog.~<~) (p.key || chr(1114111))
-        LIMIT 128
-      ) prefix
-      UNION
-      SELECT mbid FROM input i CROSS JOIN LATERAL (
-        SELECT t.mbid FROM ${terms} t WHERE t.generation = $1
-          AND t.compact_key OPERATOR(pg_catalog.~>=~) i.compact
-          AND t.compact_key OPERATOR(pg_catalog.~<~) (i.compact || chr(1114111))
-        LIMIT 128
-      ) compact_prefix
-      UNION
-      SELECT mbid FROM (SELECT key FROM input WHERE length(key) >= 5) i CROSS JOIN LATERAL (
-        SELECT t.mbid FROM ${terms} t WHERE t.generation = $1
-          AND t.match_key OPERATOR(public.%) i.key
-        ORDER BY t.match_key OPERATOR(public.<->) i.key LIMIT 128
-      ) fuzzy
+    ), unfiltered AS MATERIALIZED (${candidateIds()})${filtered ? `,
+    filtered AS MATERIALIZED (${candidateIds(albumConstraint)})` : ""},
+    candidates AS (
+      SELECT mbid FROM unfiltered
+      ${filtered ? "UNION SELECT mbid FROM filtered" : ""}
     ), scored AS (
       SELECT a.mbid, ${catalogFields(kind)}, best.tier, best.display_exact, best.strength
-      FROM candidates c JOIN catalog.${kind} a ON a.generation = $1 AND a.mbid = c.mbid
+      FROM candidates c
+      CROSS JOIN LATERAL (
+        SELECT * FROM catalog.${kind} entity WHERE entity.generation = $1 AND entity.mbid = c.mbid OFFSET 0
+      ) a
       CROSS JOIN input i
       CROSS JOIN LATERAL (
         SELECT quality.tier, t.term = $2 AS display_exact, similarity(t.match_key, i.key) AS strength
@@ -193,19 +203,19 @@ export async function searchLocal(kind: SearchKind, q: string, { artist, year, g
     ), matches AS (
       SELECT ${album ? `id, title, "creditedArtist", "originalYear", "coverReference"` : "id, name, disambiguation"}
       FROM scored
-      ${album ? `WHERE ($3::text IS NULL OR "creditedArtist" = $3)
-        AND ($4::text IS NULL OR "originalYear"::text = $4)` : ""}
+      ${filtered ? "WHERE mbid IN (SELECT mbid FROM filtered)" : ""}
       ORDER BY tier, display_exact DESC, strength DESC, ${album ? `title COLLATE "C", "originalYear" NULLS LAST, "creditedArtist" COLLATE "C"` : `name COLLATE "C", disambiguation COLLATE "C" NULLS LAST`}, mbid
       LIMIT 20
     )
+    ${filtered ? `, choices AS (SELECT * FROM scored WHERE mbid IN (SELECT mbid FROM unfiltered))` : ""}
     SELECT coalesce((SELECT json_agg(matches) FROM matches), '[]') AS matches,
-      ${album ? `ARRAY(SELECT DISTINCT "creditedArtist" FROM scored ORDER BY "creditedArtist")` : "'{}'::text[]"} AS artists,
-      ${album ? `ARRAY(SELECT year::text FROM (SELECT DISTINCT "originalYear" AS year FROM scored
+      ${album ? `ARRAY(SELECT DISTINCT "creditedArtist" FROM ${choiceRows} ORDER BY "creditedArtist")` : "'{}'::text[]"} AS artists,
+      ${album ? `ARRAY(SELECT year::text FROM (SELECT DISTINCT "originalYear" AS year FROM ${choiceRows}
         WHERE "originalYear" IS NOT NULL) years ORDER BY year DESC)` : "'{}'::text[]"} AS years
   `;
   const [result] = await inGeneration(`search-${kind}`, generation, async (client, pinned) => {
-    const { rows } = await client.query<SearchRow<Album | Artist>>(text, album
-      ? [pinned, q, artist ?? null, year ?? null]
+    const { rows } = await client.query<SearchRow<Album | Artist>>(text, filtered
+      ? [pinned, q, artist || null, filterYear]
       : [pinned, q]);
     return rows;
   }, ([row]) => row.matches.length ? "ok" : "empty");

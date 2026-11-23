@@ -49,14 +49,14 @@ Better Auth stores users, credentials, and sessions in Postgres through Drizzle.
 ```sh
 npm run typecheck
 npx playwright install chromium
-npm test
+npm run test:catalog-browser
 ```
 
-The browser suite starts a fresh Postgres container on a Docker-assigned loopback port, applies the committed migrations, and removes the container when the run finishes. It uses port 3100 for its own app server and generates a fresh auth secret. To run one test, use `npm test -- -g "returning listener"`.
+The Catalog browser command runs the existing suite in explicit remote mode, then runs local search, merged identity, Discover, and SQL outage scenarios in local mode and the snapshot rollback scenario in remote mode. Each run starts its own disposable Postgres container on a Docker-assigned loopback port, applies migrations, and generates a fresh auth secret. The app and provider stub use ports 3100 and 3101. To run only the regular remote suite, use `CATALOG_SOURCE=remote npm test`. To run one test in that suite, use `npm test -- -g "returning listener"`.
 
 ## Album catalog and Want to Listen
 
-Set the server-only `CATALOG_SOURCE=local` after publishing a validated Catalog snapshot in the target database. In local mode, Album and Artist search, identity lookups, and Discover album selection read the active snapshot. ListenBrainz supplies Related artists and popularity, and optional artwork loads separately. If a snapshot refresh fails, the active snapshot keeps serving reads. Use `CATALOG_SOURCE=remote` (the default) for initial setup or as an explicit emergency rollback. See the [import runbook](docs/catalog-import.md) and [benchmark and rollout runbook](docs/catalog-benchmark.md).
+Set the server-only `CATALOG_SOURCE=local` after publishing a validated Catalog snapshot in the target database. Local mode uses the snapshot for search and fresh Album and Artist lookups. If a refresh fails, the active snapshot keeps serving reads. Set `CATALOG_SOURCE=remote` (the default) for initial setup or to switch those reads back to MusicBrainz. Both modes use known snapshot redirects for Journal identity when the active snapshot is readable. Retained records remain usable by their exact IDs when redirects are unavailable. See the [import runbook](docs/catalog-import.md) and [benchmark and rollout runbook](docs/catalog-benchmark.md).
 
 The public API request controls described below apply in remote mode.
 
@@ -114,20 +114,25 @@ failures, shared rate limits, and phone keyboard operation.
 ## Discover
 
 Discover offers a handpicked shelf before a listener saves any artists. The
-`0004_handpicked-shelf` migration adds three MusicBrainz release groups to the
-local Catalog, so the shelf and its album details work during provider outages.
+`0004_handpicked-shelf` migration retains three Albums in the Journal database,
+so the shelf and its Album details work during provider outages.
 Albums leave the shelf when the listener saves or logs them. Removing an
 unlogged album from Want to Listen makes it eligible again.
 
-Choose a seed from Saved Artists to see up to three related artists from
-ListenBrainz Radio. Discover ranks the first eight ListenBrainz release groups
-and checks them against MusicBrainz. It falls back to one MusicBrainz discography
-page of up to twelve release groups. Both paths require a primary type of Album,
-exclude compilations, and require a known first release date no later than today
-(UTC) at its available precision. Review the album details to save or log it.
+Choose a seed from Saved Artists to see up to three Related artists from
+ListenBrainz Radio. In local mode, Discover resolves those Artists and checks
+ListenBrainz popularity results against the active snapshot. If no ranked
+Album qualifies, it checks the local discography newest first with the
+MusicBrainz website-default release status policy. The Handpicked shelf
+remains available when there is no readable local index.
 
-Provider requests use public MusicBrainz IDs. The app filters Want to Listen and
-logged albums after fetching public catalog candidates. Both providers use the
+In remote mode, Discover uses the Radio names, checks the first eight ranked
+ListenBrainz release groups against MusicBrainz, and checks one MusicBrainz
+discography page of up to twelve release groups. Both modes require a primary
+type of Album, exclude compilations, and require a known first release date no
+later than today (UTC) at its available precision. The app uses snapshot
+redirects when available to identify equivalent Albums and exclude anything
+already saved or logged. Provider requests contain public IDs only. Both providers use the
 shared Postgres request controls described above, with independent limits and
 a minimum one-second gap for each. ListenBrainz success responses are cached for
 one day and honor the rate-limit reset headers. Set `LISTENBRAINZ_BASE_URL` to

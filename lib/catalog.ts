@@ -1,14 +1,13 @@
 import "server-only";
-import { eq } from "drizzle-orm";
 import { maxSearchLength, minSuggestionLength, type AlbumFilters } from "./catalog-search";
-import { localCatalogGeneration, localReleasedAlbums, lookupLocal, searchLocal, usesLocalCatalog } from "./local-catalog";
-import { db } from "./db";
+import { usesLocalCatalog } from "./catalog-identity";
+import { localReleasedAlbums, lookupLocal, searchLocal } from "./local-catalog";
 import { isListenDate } from "./listen-date";
 import { CatalogError, requestProvider, type Failure } from "./provider";
 import { album, artist } from "./schema";
 
 export { CatalogError } from "./provider";
-export { usesLocalCatalog } from "./local-catalog";
+export { usesLocalCatalog } from "./catalog-identity";
 export type Album = typeof album.$inferSelect;
 export type Artist = typeof artist.$inferSelect;
 
@@ -76,17 +75,6 @@ function parseReleasedAlbum(value: unknown) {
   return { ...album, releaseDate };
 }
 
-/**
- * Read the active generation once for a multi-read Catalog request. In local mode
- * null signals an unavailable index. Remote mode also returns null and uses MusicBrainz.
- * Pass the result through to every subsequent read, including a null result.
- * A database failure raises CatalogError. Omitting a generation pins the current
- * one at the start of that individual read.
- */
-export async function getCatalogGeneration(): Promise<number | null> {
-  return usesLocalCatalog() ? localCatalogGeneration() : null;
-}
-
 /** Local results are released, non-compilation Albums credited to the Artist, in input popularity order. */
 export function rankedAlbums(artistId: string, ids: string[], generation?: number | null) {
   if (usesLocalCatalog()) {
@@ -134,26 +122,7 @@ export async function searchAlbumResults(title: string, filters: AlbumFilters = 
   };
 }
 
-async function findLocal<T>(lookup: Promise<T[]>, retained: () => Promise<T[]>): Promise<T> {
-  try {
-    const [found] = await lookup;
-    if (found) return found;
-    throw new CatalogError("missing");
-  } catch (error) {
-    if (!(error instanceof CatalogError)) throw error;
-    const [stored] = await retained().catch(() => { throw error; });
-    if (stored) return stored;
-    throw error;
-  }
-}
-
-export async function findAlbum(id: string, generation?: number | null): Promise<Album> {
-  if (!isAlbumId(id)) throw new CatalogError("missing");
-  id = id.toLowerCase();
-  const retained = () => db.select().from(album).where(eq(album.id, id)).execute();
-  if (usesLocalCatalog()) return findLocal(lookupLocal("album", [id], generation), retained);
-  const [local] = await retained();
-  if (local) return local;
+export async function fetchRemoteAlbum(id: string): Promise<Album> {
   const [found] = await request("find-album", `release-group/${id}?inc=artist-credits&fmt=json`, null, parseAlbum);
   if (!found || found.id !== id) throw new CatalogError("missing");
   return found;
@@ -170,13 +139,7 @@ export async function searchArtists(name: string, generation?: number | null) {
   return request("search-artist", `artist/?${new URLSearchParams({ query: `artist:"${escaped}"`, fmt: "json", limit: "20" })}`, "artists", parseArtist);
 }
 
-export async function findArtist(id: string, generation?: number | null): Promise<Artist> {
-  if (!isAlbumId(id)) throw new CatalogError("missing");
-  id = id.toLowerCase();
-  const retained = () => db.select().from(artist).where(eq(artist.id, id)).execute();
-  if (usesLocalCatalog()) return findLocal(lookupLocal("artist", [id], generation), retained);
-  const [local] = await retained();
-  if (local) return local;
+export async function fetchRemoteArtist(id: string): Promise<Artist> {
   const [found] = await request("find-artist", `artist/${id}?fmt=json`, null, parseArtist);
   if (!found || found.id !== id) throw new CatalogError("missing");
   return found;

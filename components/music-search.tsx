@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { CatalogSearch } from "@/components/catalog-search";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { maxSearchLength, minSuggestionLength, type SearchAnswer, type SearchKind } from "@/lib/catalog-search";
+import { albumFiltersFromURL, maxSearchLength, minSuggestionLength, type SearchAnswer, type SearchKind } from "@/lib/catalog-search";
 
 const searchDebounceMs = 1000;
 const maxAutomaticWaitMs = 10000;
@@ -15,8 +15,7 @@ export function MusicSearch({ kind, children }: { kind: SearchKind; children?: R
   const params = useSearchParams();
   const [query, setQuery] = useState(() => (params.get("q") ?? "").slice(0, maxSearchLength));
   const live = params.get("search") === "1";
-  const year = params.get("year") ?? "";
-  const artist = params.get("artist") ?? "";
+  const { year = "", artist = "" } = albumFiltersFromURL(params);
   const filtersOpen = params.get("filters") === "1";
   const input = useRef<HTMLInputElement>(null);
   const retryAt = useRef(0);

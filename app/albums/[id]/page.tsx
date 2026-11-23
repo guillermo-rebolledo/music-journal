@@ -2,9 +2,9 @@ import Link from "next/link";
 import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { getListener } from "../../../lib/auth";
-import { CatalogError, catalogMessages, findAlbum, isAlbumId } from "../../../lib/catalog";
-import { catalogAliasGroup, pinCatalogGeneration, usesLocalCatalog } from "../../../lib/catalog-identity";
-import { findPinnedAlbum, getAlbumJournal } from "../../../lib/journal";
+import { CatalogError, catalogMessages, isAlbumId } from "../../../lib/catalog";
+import { resolveCatalogIdentity } from "../../../lib/catalog-identity";
+import { getAlbumJournal, resolveAlbum } from "../../../lib/journal";
 import { todayUTC } from "../../../lib/listen-date";
 import { AlbumArtwork } from "../../album-artwork";
 import { ListenForm } from "./listen-form";
@@ -17,14 +17,13 @@ export default async function AlbumPage({ params }: { params: Promise<{ id: stri
   if (!listener) redirect("/sign-in");
   const { id } = await params;
   const albumId = id.toLowerCase();
-  const local = usesLocalCatalog();
   let group;
   let album;
   try {
     if (!isAlbumId(albumId)) throw new CatalogError("missing");
-    const generation = await pinCatalogGeneration();
-    group = await catalogAliasGroup("album", generation, albumId);
-    album = local ? await findPinnedAlbum(generation, group) : await findAlbum(albumId);
+    const identity = await resolveCatalogIdentity("album", albumId);
+    group = identity.group;
+    album = await resolveAlbum(identity.generation, group);
   }
   catch (error) {
     if (!(error instanceof CatalogError)) throw error;

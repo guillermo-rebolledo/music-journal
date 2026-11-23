@@ -13,6 +13,7 @@
     "db:migrate": "node --env-file-if-exists=.env --env-file-if-exists=.env.local node_modules/drizzle-kit/bin.cjs migrate",
     "test": "sh scripts/test-browser.sh",
     "catalog:snapshot": "node scripts/catalog-snapshot.mjs",
+    "test:catalog-browser": "sh scripts/test-catalog-browser.sh",
     "test:catalog-import": "sh scripts/test-catalog-import.sh"
   },
   "dependencies": {

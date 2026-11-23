@@ -153,3 +153,55 @@ test("a Catalog merge combines memberships and preserves repeat listens through 
     await pool.end();
   }
 });
+
+test("remote rollback keeps snapshot aliases for Journal writes and Discover exclusions", async ({ page, request }) => {
+  test.skip(process.env.CATALOG_SOURCE !== "remote" || process.env.CATALOG_TEST_REMOTE_SNAPSHOT !== "1",
+    "Uses an isolated remote run with its own active snapshot.");
+  test.setTimeout(90_000);
+  const email = `${crypto.randomUUID()}@example.test`;
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  await request.get(`${control}?reset=true`);
+  try {
+    await signUp(page, email);
+    await page.goto(albumPath(oldAlbum));
+    await log(page, "2000-02-29");
+    await save(page).click();
+    await expect(remove(page)).toBeVisible();
+
+    await page.goto("/search/artists?q=Shared+artist");
+    await page.locator(`#artist-${oldArtist}`).getByRole("button", { name: "Save artist", exact: true }).click();
+    await expect(page.locator(`#artist-${oldArtist}`).getByRole("button", { name: /Remove from Saved Artists/ })).toBeVisible();
+
+    snapshot("import", "--fixture", "tests/fixtures/catalog/v2");
+    // Model a MusicBrainz merge from a release group still returned by remote Discover.
+    await pool.query(`
+      INSERT INTO catalog.album_redirect (generation, old_mbid, mbid)
+      SELECT active_generation, '42424242-4242-4242-8242-424242424242', $1
+      FROM catalog.state
+    `, [currentAlbum]);
+
+    await page.goto(queuePath);
+    await expect(queue(page).getByRole("link", { name: "Shared title" })).toHaveAttribute("href", albumPath(currentAlbum));
+    await page.goto(albumPath(currentAlbum));
+    await expect(history(page)).toHaveText(["2000-02-29"]);
+    await expect(remove(page)).toBeVisible();
+    await log(page, "2004-02-29");
+    await expect(save(page)).toBeVisible();
+    await page.goto(albumPath(oldAlbum));
+    await expect(history(page)).toHaveText(["2004-02-29", "2000-02-29"]);
+    await page.goto(queuePath);
+    await expect(queue(page).getByRole("listitem")).toHaveCount(0);
+
+    await page.goto("/search/artists?q=Shared+artist");
+    await expect(page.locator(`#artist-${oldArtist}`).getByRole("button", { name: /Remove from Saved Artists/ })).toBeVisible();
+    await page.goto(`/discover?seed=${oldArtist}`);
+    await expect(page.getByLabel("Seed artist")).toHaveValue(currentArtist);
+    const related = page.getByRole("region", { name: "Related artists" });
+    await expect(related.getByRole("link", { name: "Lower ranked album" })).toBeVisible();
+    await expect(related.getByRole("link", { name: "Popular album" })).toHaveCount(0);
+    const calls: { url: string }[] = await (await request.get(control)).json();
+    expect(calls.some(({ url }) => url.startsWith("/release-group/?") && url.includes("rgid"))).toBe(true);
+  } finally {
+    await pool.end();
+  }
+});

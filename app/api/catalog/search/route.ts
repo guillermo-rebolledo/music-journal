@@ -1,6 +1,6 @@
 import { albumCoverThumbnail } from "@/app/album-artwork";
 import { getListener } from "@/lib/auth";
-import { albumFilters, maxSearchLength, minSuggestionLength, type SearchAnswer } from "@/lib/catalog-search";
+import { albumFiltersFromURL, maxSearchLength, minSuggestionLength, type SearchAnswer } from "@/lib/catalog-search";
 import { CatalogError, catalogMessages, searchAlbumResults, searchArtists, usesLocalCatalog } from "@/lib/catalog";
 
 export async function GET(request: Request) {
@@ -19,7 +19,7 @@ export async function GET(request: Request) {
 
   try {
     if (kind === "album") {
-      const filters = albumFilters(params);
+      const filters = albumFiltersFromURL(params);
       const { matches, ...choices } = await searchAlbumResults(q, filters);
       return respond({
         matches: matches.map(({ id, title, creditedArtist, originalYear }) =>

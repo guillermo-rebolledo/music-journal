@@ -7,8 +7,14 @@ export const maxSearchLength = 200;
 export type AlbumFilters = { artist?: string; year?: string };
 export type AlbumFilterChoices = { artists: string[]; years: string[] };
 
-export function albumFilters(params: { get(name: string): string | null }): AlbumFilters {
-  return { artist: params.get("artist") || undefined, year: params.get("year") || undefined };
+export function albumFilters(params: { artist?: string | string[]; year?: string | string[] }): AlbumFilters {
+  const single = (value?: string | string[]) =>
+    (Array.isArray(value) ? (value.length === 1 ? value[0] : undefined) : value) || undefined;
+  return { artist: single(params.artist), year: single(params.year) };
+}
+
+export function albumFiltersFromURL(params: Pick<URLSearchParams, "getAll">): AlbumFilters {
+  return albumFilters({ artist: params.getAll("artist"), year: params.getAll("year") });
 }
 
 export function searchHref(kind: SearchKind, q: string, filters: AlbumFilters = {}) {
