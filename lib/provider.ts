@@ -45,13 +45,15 @@ export async function requestProvider<T>(
   ttl: number,
   parse: (data: unknown) => T,
 ): Promise<T> {
-  const cacheKey = `${provider === "musicbrainz" ? "v2" : provider}:${path}`;
   const startedAt = performance.now();
   const resource = path.split(/[/?]/, 1)[0];
   const operation = provider === "musicbrainz"
     ? `${resource}-${path.startsWith(`${resource}/?`) ? "search" : path.startsWith(`${resource}?`) ? "browse" : "lookup"}`
     : provider === "listenbrainz" && path.startsWith("1/lb-radio/") ? "related-artists"
     : provider === "listenbrainz" ? "popularity" : "artwork";
+  // Earlier popularity entries cached only the first eight groups.
+  const cacheNamespace = provider === "musicbrainz" ? "v2" : operation === "popularity" ? "listenbrainz-popularity-v2" : provider;
+  const cacheKey = `${cacheNamespace}:${path}`;
   let cache = "miss";
   let outcome = "db-error";
   let upstreamStatus: number | undefined;

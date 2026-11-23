@@ -2,11 +2,9 @@ import { MusicSearch } from "@/components/music-search";
 import { maxSearchLength, searchHref } from "@/lib/catalog-search";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { eq } from "drizzle-orm";
 import { getListener } from "../../../lib/auth";
-import { CatalogError, catalogMessages, searchArtists } from "../../../lib/catalog";
-import { db } from "../../../lib/db";
-import { savedArtist } from "../../../lib/schema";
+import { CatalogError, catalogMessages, getCatalogGeneration, searchArtists } from "../../../lib/catalog";
+import { getSavedArtistIds } from "../../../lib/journal";
 import { ArtistSummary } from "../../artist-summary";
 
 export const metadata = { title: "Search artists | Music Journal" };
@@ -18,11 +16,17 @@ export default async function ArtistSearchPage({ searchParams }: { searchParams:
   const q = params.search !== "1" && typeof params.q === "string" ? params.q.trim() : "";
   let artists: Awaited<ReturnType<typeof searchArtists>> = [];
   let error = q.length > maxSearchLength ? `Use an artist name of ${maxSearchLength} characters or fewer.` : "";
+  let saved = new Set<string>();
   if (q && !error) {
-    try { artists = await searchArtists(q); }
-    catch (cause) { if (!(cause instanceof CatalogError)) throw cause; error = cause.kind === "missing" ? "This artist could not be found in the catalog." : catalogMessages[cause.kind]; }
+    try {
+      const generation = await getCatalogGeneration();
+      artists = await searchArtists(q, generation);
+      if (artists.length) saved = await getSavedArtistIds(listener.id, generation);
+    } catch (cause) {
+      if (!(cause instanceof CatalogError)) throw cause;
+      error = cause.kind === "missing" ? "This artist could not be found in the catalog." : catalogMessages[cause.kind];
+    }
   }
-  const saved = new Set(q && !error ? (await db.select({ id: savedArtist.artistId }).from(savedArtist).where(eq(savedArtist.listenerId, listener.id))).map((row) => row.id) : []);
   return <main id="main-content" tabIndex={-1}>
     <Link href="/journal?tab=saved-artists">Back to Journal</Link>
     <p><Link href="/search">Search albums</Link></p>

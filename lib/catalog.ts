@@ -151,7 +151,7 @@ export async function findAlbum(id: string, generation?: number | null): Promise
   if (!isAlbumId(id)) throw new CatalogError("missing");
   id = id.toLowerCase();
   const retained = () => db.select().from(album).where(eq(album.id, id)).execute();
-  if (usesLocalCatalog()) return findLocal(lookupLocal("album", id, generation), retained);
+  if (usesLocalCatalog()) return findLocal(lookupLocal("album", [id], generation), retained);
   const [local] = await retained();
   if (local) return local;
   const [found] = await request("find-album", `release-group/${id}?inc=artist-credits&fmt=json`, null, parseAlbum);
@@ -159,12 +159,12 @@ export async function findAlbum(id: string, generation?: number | null): Promise
   return found;
 }
 
-export async function searchArtists(name: string) {
+export async function searchArtists(name: string, generation?: number | null) {
   const normalized = name.trim().replace(/\s+/g, " ");
   if (!normalized || normalized.length > maxSearchLength) return [];
   if (usesLocalCatalog()) {
     if (normalized.length < minSuggestionLength) return [];
-    return (await searchLocal("artist", normalized)).matches;
+    return (await searchLocal("artist", normalized, { generation })).matches;
   }
   const escaped = normalized.replace(/[+\-!(){}\[\]^"~*?:\\/&|]/g, "\\$&");
   return request("search-artist", `artist/?${new URLSearchParams({ query: `artist:"${escaped}"`, fmt: "json", limit: "20" })}`, "artists", parseArtist);
@@ -174,10 +174,15 @@ export async function findArtist(id: string, generation?: number | null): Promis
   if (!isAlbumId(id)) throw new CatalogError("missing");
   id = id.toLowerCase();
   const retained = () => db.select().from(artist).where(eq(artist.id, id)).execute();
-  if (usesLocalCatalog()) return findLocal(lookupLocal("artist", id, generation), retained);
+  if (usesLocalCatalog()) return findLocal(lookupLocal("artist", [id], generation), retained);
   const [local] = await retained();
   if (local) return local;
   const [found] = await request("find-artist", `artist/${id}?fmt=json`, null, parseArtist);
   if (!found || found.id !== id) throw new CatalogError("missing");
   return found;
+}
+
+/** Resolve ordered Artist candidates using only the pinned local Catalog. */
+export function findCatalogArtists(ids: string[], generation: number) {
+  return lookupLocal("artist", ids.filter(isAlbumId), generation);
 }

@@ -2,13 +2,14 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { NativeSelect } from "@/components/ui/native-select";
 import Link from "next/link";
-import { and, eq, inArray, notExists } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { getListener } from "../../lib/auth";
-import { CatalogError, isAlbumId, type Artist } from "../../lib/catalog";
-import { relatedArtists, suggestedAlbum } from "../../lib/discover";
+import { CatalogError, getCatalogGeneration, isAlbumId, type Artist } from "../../lib/catalog";
+import { catalogCanonicalIds } from "../../lib/catalog-identity";
+import { relatedArtists, suggestedAlbum, untriedAlbums } from "../../lib/discover";
 import { db } from "../../lib/db";
-import { album, artist, listen, savedArtist, wantToListen } from "../../lib/schema";
+import { album, artist, savedArtist } from "../../lib/schema";
 import { AlbumSummary } from "../album-summary";
 import { ArtistArtwork } from "../artwork";
 import { SavedArtistForm } from "../artists/saved-artist-form";
@@ -27,34 +28,38 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
   if (!listener) redirect("/sign-in");
 
   const { seed: requestedSeed } = await searchParams;
-  const [saved, starters] = await Promise.all([
+  const requestedId = typeof requestedSeed === "string" && isAlbumId(requestedSeed)
+    ? requestedSeed.toLowerCase()
+    : undefined;
+  const [generation, storedArtists, starterAlbums] = await Promise.all([
+    getCatalogGeneration().catch((error: unknown) => {
+      if (!(error instanceof CatalogError)) throw error;
+      return null;
+    }),
     db.select({ id: artist.id, name: artist.name, disambiguation: artist.disambiguation })
       .from(savedArtist).innerJoin(artist, eq(savedArtist.artistId, artist.id))
       .where(eq(savedArtist.listenerId, listener.id)).orderBy(artist.name, artist.disambiguation, artist.id),
-    db.select().from(album).where(and(
-      inArray(album.id, starterIds),
-      notExists(db.select({ albumId: wantToListen.albumId }).from(wantToListen)
-        .where(and(eq(wantToListen.albumId, album.id), eq(wantToListen.listenerId, listener.id)))),
-      notExists(db.select({ albumId: listen.albumId }).from(listen)
-        .where(and(eq(listen.albumId, album.id), eq(listen.listenerId, listener.id)))),
-    )).orderBy(album.title),
+    db.select().from(album).where(inArray(album.id, starterIds)).orderBy(album.title),
   ]);
-  const savedIds = new Set(saved.map(({ id }) => id));
-  const seed = typeof requestedSeed === "string" && isAlbumId(requestedSeed)
-    ? saved.find(({ id }) => id === requestedSeed.toLowerCase())
-    : undefined;
-  let related: Artist[] = [];
-  let unavailable = false;
-  if (seed) {
-    try {
-      related = await relatedArtists(seed.id);
-    } catch (error) {
-      if (!(error instanceof CatalogError)) throw error;
-      unavailable = true;
-    }
+  const artistIds = storedArtists.map(({ id }) => id);
+  if (requestedId) artistIds.push(requestedId);
+  const canonical = await catalogCanonicalIds("artist", generation, artistIds);
+  const saved = new Map<string, Artist>();
+  for (const item of storedArtists) {
+    const id = canonical.get(item.id) ?? item.id;
+    if (!saved.has(id) || id === item.id) saved.set(id, { ...item, id });
   }
-  const suggestions = await Promise.all(related.map(async (artist) => ({
-    artist, album: await suggestedAlbum(artist.id, listener.id),
+  const seed = requestedId ? saved.get(canonical.get(requestedId) ?? requestedId) : undefined;
+  const [starters, related] = await Promise.all([
+    untriedAlbums(starterAlbums, listener.id, generation),
+    seed ? relatedArtists(seed.id, generation).catch((error: unknown) => {
+      if (!(error instanceof CatalogError)) throw error;
+      return null;
+    }) : [],
+  ]);
+  const unavailable = related === null;
+  const suggestions = await Promise.all((related ?? []).map(async (artist) => ({
+    artist, album: await suggestedAlbum(artist.id, listener.id, generation),
   })));
 
   return (
@@ -64,12 +69,12 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
         <section className="results-heading" aria-labelledby="related-artists">
           <h2 id="related-artists">Related artists</h2>
           {requestedSeed !== undefined && !seed && <p>This seed artist is no longer in your Saved Artists.</p>}
-          {saved.length ? (
+          {saved.size ? (
             <form action="/discover" method="get" className="auth-form seed-form">
               <FieldGroup><Field><FieldLabel htmlFor="seed">Seed artist</FieldLabel>
                 <NativeSelect id="seed" name="seed" required defaultValue={seed?.id ?? ""}>
                   <option value="" disabled>Choose a Saved Artist</option>
-                  {saved.map((item) => (
+                  {[...saved.values()].map((item) => (
                     <option key={item.id} value={item.id}>
                       {item.name}{item.disambiguation ? ` · ${item.disambiguation}` : ""}
                     </option>
@@ -89,7 +94,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
               {suggestions.map(({ artist, album }) => (
                 <li className="artist-row" key={artist.id}>
                   <ArtistArtwork id={artist.id}><strong>{artist.name}</strong></ArtistArtwork>
-                  {savedIds.has(artist.id) ? (
+                  {saved.has(artist.id) ? (
                     <p>Saved to Saved Artists</p>
                   ) : (
                     <SavedArtistForm artistId={artist.id} artistName={artist.name} saved={false} />

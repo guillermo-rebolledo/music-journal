@@ -103,21 +103,23 @@ function canonicalId(kind: SearchKind, id: string) {
     WHERE generation = $1 AND old_mbid = ${id}), ${id})`;
 }
 
-export function lookupLocal(kind: "album", id: string, generation?: number | null): Promise<Album[]>;
-export function lookupLocal(kind: "artist", id: string, generation?: number | null): Promise<Artist[]>;
-export function lookupLocal(kind: SearchKind, id: string, generation?: number | null) {
+export function lookupLocal(kind: "album", ids: string[], generation?: number | null): Promise<Album[]>;
+export function lookupLocal(kind: "artist", ids: string[], generation?: number | null): Promise<Artist[]>;
+export function lookupLocal(kind: SearchKind, ids: string[], generation?: number | null) {
   return inGeneration(`find-${kind}`, generation, async (client, pinned) =>
     (await client.query<Album | Artist>(`
       SELECT ${catalogFields(kind)}
-      FROM catalog.${kind} a WHERE a.generation = $1 AND a.mbid = ${canonicalId(kind, "$2::uuid")}
-    `, [pinned, id])).rows, (rows) => rows.length ? "ok" : "missing");
+      FROM unnest($2::uuid[]) WITH ORDINALITY input(id, position)
+      JOIN catalog.${kind} a ON a.generation = $1 AND a.mbid = ${canonicalId(kind, "input.id")}
+      ORDER BY input.position
+    `, [pinned, ids])).rows, (rows) => rows.length ? "ok" : "missing");
 }
 
 type SearchRow<T> = { matches: T[]; artists: string[]; years: string[] };
 
 export function searchLocal(kind: "album", q: string, filters: AlbumFilters): Promise<SearchRow<Album>>;
-export function searchLocal(kind: "artist", q: string): Promise<SearchRow<Artist>>;
-export async function searchLocal(kind: SearchKind, q: string, { artist, year }: AlbumFilters = {}) {
+export function searchLocal(kind: "artist", q: string, options: { generation?: number | null }): Promise<SearchRow<Artist>>;
+export async function searchLocal(kind: SearchKind, q: string, { artist, year, generation }: AlbumFilters & { generation?: number | null }) {
   const album = kind === "album";
   const terms = `catalog.${kind}_term`;
   // shortcut: common terms contribute a bounded sample per index branch. Tune
@@ -201,10 +203,10 @@ export async function searchLocal(kind: SearchKind, q: string, { artist, year }:
       ${album ? `ARRAY(SELECT year::text FROM (SELECT DISTINCT "originalYear" AS year FROM scored
         WHERE "originalYear" IS NOT NULL) years ORDER BY year DESC)` : "'{}'::text[]"} AS years
   `;
-  const [result] = await inGeneration(`search-${kind}`, undefined, async (client, generation) => {
+  const [result] = await inGeneration(`search-${kind}`, generation, async (client, pinned) => {
     const { rows } = await client.query<SearchRow<Album | Artist>>(text, album
-      ? [generation, q, artist ?? null, year ?? null]
-      : [generation, q]);
+      ? [pinned, q, artist ?? null, year ?? null]
+      : [pinned, q]);
     return rows;
   }, ([row]) => row.matches.length ? "ok" : "empty");
   return result;
