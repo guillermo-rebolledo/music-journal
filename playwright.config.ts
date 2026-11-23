@@ -9,6 +9,7 @@ if (!databaseURL || new URL(databaseURL).pathname !== "/music_journal_test") {
 
 export default defineConfig({
   testDir: "./tests",
+  testIgnore: "**/catalog-import.test.mjs",
   workers: 1,
   timeout: 45000,
   use: { ...devices["Desktop Chrome"], baseURL },
