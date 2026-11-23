@@ -1,10 +1,9 @@
-import { desc, eq } from "drizzle-orm";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { db } from "../../lib/db";
-import { album, artist, listen, savedArtist, wantToListen } from "../../lib/schema";
 import { getListener } from "../../lib/auth";
+import { pinCatalogGeneration } from "../../lib/catalog-identity";
 import { displayDate, timeZoneCookie } from "../../lib/display-date";
+import { getJournal } from "../../lib/journal";
 import { ArtistSummary } from "../artist-summary";
 import { JournalTabs } from "./journal-tabs";
 import { toJournalTab } from "./journal-tab";
@@ -25,9 +24,7 @@ export default async function JournalPage({ searchParams }: { searchParams: Prom
 
   const initialTab = toJournalTab((await searchParams).tab);
   const timeZone = (await cookies()).get(timeZoneCookie)?.value;
-  const queue = await db.select({ album, addedAt: wantToListen.createdAt }).from(wantToListen).innerJoin(album, eq(wantToListen.albumId, album.id)).where(eq(wantToListen.listenerId, listener.id)).orderBy(desc(wantToListen.createdAt));
-  const listens = await db.select({ album, listen }).from(listen).innerJoin(album, eq(listen.albumId, album.id)).where(eq(listen.listenerId, listener.id)).orderBy(desc(listen.listenDate), desc(listen.createdAt), desc(listen.submissionKey)).limit(50);
-  const artists = await db.select({ artist }).from(savedArtist).innerJoin(artist, eq(savedArtist.artistId, artist.id)).where(eq(savedArtist.listenerId, listener.id)).orderBy(desc(savedArtist.createdAt), artist.id);
+  const { queue, listens, artists } = await getJournal(listener.id, await pinCatalogGeneration());
 
   return (
     <main id="main-content" tabIndex={-1}>
