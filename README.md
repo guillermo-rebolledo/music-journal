@@ -56,6 +56,10 @@ The browser suite starts a fresh Postgres container on a Docker-assigned loopbac
 
 ## Album catalog and Want to Listen
 
+Set the server-only `CATALOG_SOURCE=local` after publishing a validated Catalog snapshot in the target database. In local mode, Album and Artist search, identity lookups, and Discover album selection read the active snapshot. ListenBrainz supplies Related artists and popularity, and optional artwork loads separately. If a snapshot refresh fails, the active snapshot keeps serving reads. Use `CATALOG_SOURCE=remote` (the default) for initial setup or as an explicit emergency rollback. See the [import runbook](docs/catalog-import.md) and [benchmark and rollout runbook](docs/catalog-benchmark.md).
+
+The public API request controls described below apply in remote mode.
+
 Search uses MusicBrainz release groups with primary type Album. Common reissues share a release-group detail page. Saving validates that identity against the local Catalog or a MusicBrainz lookup, then persists the title, credited artist, and original year. Want to Listen has a unique listener–album key; actions resolve the listener from the server session. Removal is idempotent and never deletes Catalog metadata.
 
 Apply the new migration before serving this version. Album metadata remains available locally after removal, so existing saved album pages and wishlist actions work during provider outages.
