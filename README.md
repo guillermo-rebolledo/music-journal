@@ -64,6 +64,8 @@ All app instances must share the same Postgres database. A transaction advisory 
 
 `MUSICBRAINZ_BASE_URL` can point server-side requests at a trusted MusicBrainz-compatible endpoint (default: `https://musicbrainz.org/ws/2`). The browser suite starts its own local stub through this setting and never calls the live catalog. It covers ambiguous titles, missing metadata, concurrent/replayed saves, two-account isolation, outages, rate limits, timeout recovery, and phone keyboard use. Before beta, separately spot-check the live provider from the deployment host, including multilingual titles.
 
+See [Catalog snapshot operations](docs/catalog-import.md) for isolated import, validation and rollback.
+
 ## Catalog artwork
 
 Album covers use [Cover Art Archive release-group thumbnails](https://musicbrainz.org/doc/Cover_Art_Archive/API). Artist photos match the MusicBrainz artist ID to a Wikidata item, then use its image claim and fetch thumbnail and credit metadata from Wikimedia Commons. Those server lookups reuse the shared provider cache and rate limits. The browser loads thumbnails directly from the image hosts without a referrer. Missing or failed images show an illustrated fallback.

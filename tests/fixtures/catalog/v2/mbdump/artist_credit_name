@@ -1,0 +1,16 @@
+1	0	4	First Artist	 & 
+1	1	5	Guest	
+2	0	6	Second Artist	
+3	0	3	Unknown artist	
+4	0	7	Direct Artist	
+5	0	8	Related studio artist	
+6	0	9	Related fallback artist	
+7	0	10	Related sparse artist	
+8	0	13	Miles Davis	
+9	0	14	宇多田ヒカル	
+10	0	15	Radiohead	
+11	0	16	Stan Getz	 / 
+11	1	17	João Gilberto	 featuring 
+11	2	18	Antônio Carlos Jobim	
+12	0	19	Daft Punk	
+13	0	1	Shared ártist	
