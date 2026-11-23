@@ -1,7 +1,7 @@
 import { albumCoverThumbnail } from "@/app/album-artwork";
 import { getListener } from "@/lib/auth";
-import { maxSearchLength, minSuggestionLength, type SearchAnswer } from "@/lib/catalog-search";
-import { CatalogError, catalogMessages, searchAlbums, searchArtists } from "@/lib/catalog";
+import { albumFilters, maxSearchLength, minSuggestionLength, type SearchAnswer } from "@/lib/catalog-search";
+import { CatalogError, catalogMessages, searchAlbumResults, searchArtists, usesLocalCatalog } from "@/lib/catalog";
 
 export async function GET(request: Request) {
   function respond(answer: SearchAnswer, status = 200) {
@@ -18,11 +18,17 @@ export async function GET(request: Request) {
   if (q.length < minSuggestionLength) return respond({ matches: [] });
 
   try {
-    const matches = kind === "album"
-      ? (await searchAlbums(q)).map(({ id, title, creditedArtist, originalYear }) =>
-          ({ id, title, detail: creditedArtist, year: originalYear, cover: albumCoverThumbnail(id) }))
-      : (await searchArtists(q)).map(({ id, name, disambiguation }) =>
-          ({ id, title: name, detail: disambiguation }));
+    if (kind === "album") {
+      const filters = albumFilters(params);
+      const { matches, ...choices } = await searchAlbumResults(q, filters);
+      return respond({
+        matches: matches.map(({ id, title, creditedArtist, originalYear }) =>
+          ({ id, title, detail: creditedArtist, year: originalYear, cover: albumCoverThumbnail(id) })),
+        ...(usesLocalCatalog() || filters.artist || filters.year ? { choices } : {}),
+      });
+    }
+    const matches = (await searchArtists(q)).map(({ id, name, disambiguation }) =>
+      ({ id, title: name, detail: disambiguation }));
     return respond({ matches });
   } catch (cause) {
     if (!(cause instanceof CatalogError)) throw cause;

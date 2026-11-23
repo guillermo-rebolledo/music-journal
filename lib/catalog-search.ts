@@ -4,8 +4,18 @@ export const searchPaths = { album: "/search", artist: "/search/artists" } as co
 export const minSuggestionLength = 2;
 export const maxSearchLength = 200;
 
-export function searchHref(kind: SearchKind, q: string) {
-  return `${searchPaths[kind]}?${new URLSearchParams({ q })}`;
+export type AlbumFilters = { artist?: string; year?: string };
+export type AlbumFilterChoices = { artists: string[]; years: string[] };
+
+export function albumFilters(params: { get(name: string): string | null }): AlbumFilters {
+  return { artist: params.get("artist") || undefined, year: params.get("year") || undefined };
+}
+
+export function searchHref(kind: SearchKind, q: string, filters: AlbumFilters = {}) {
+  const params = new URLSearchParams({ q });
+  if (filters.artist) params.set("artist", filters.artist);
+  if (filters.year) params.set("year", filters.year);
+  return `${searchPaths[kind]}?${params}`;
 }
 
 export type SearchMatch = {
@@ -16,4 +26,4 @@ export type SearchMatch = {
   cover?: string;
 };
 
-export type SearchAnswer = { matches: SearchMatch[] } | { error: string; retryAfter?: number };
+export type SearchAnswer = { matches: SearchMatch[]; choices?: AlbumFilterChoices } | { error: string; retryAfter?: number };
