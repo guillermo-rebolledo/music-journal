@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { cp, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -110,6 +110,11 @@ test("operator validates and switches Catalog snapshots while preserving Journal
   await writeFile(join(dir, "mbdump", "artist_gid_redirect"), `${legacyArtist}\t99999\t\\N\n`);
   await assert.rejects(cli("import", "--fixture", dir), /invalid-reference/);
   assert.equal((await cli("status")).last_failure.error_category, "invalid-reference");
+  await cp(join(fixture(2), "mbdump", "artist_gid_redirect"), join(dir, "mbdump", "artist_gid_redirect"));
+  const creditNames = join(dir, "mbdump", "artist_credit_name");
+  const names = await readFile(creditNames, "utf8");
+  await writeFile(creditNames, names.replace(/^1\t[^\n]*\n/gm, ""));
+  await assert.rejects(cli("import", "--fixture", dir), /invalid-credit/);
   assert.equal((await lookup(legacy)).mbid, legacy);
 
   await blocker.query("BEGIN");
