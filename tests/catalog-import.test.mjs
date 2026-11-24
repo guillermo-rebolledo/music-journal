@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { cp, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -18,9 +18,10 @@ const fixture = (version) => `tests/fixtures/catalog/v${version}`;
 const operator = new URL(url);
 operator.username = "catalog_operator_test";
 operator.password = "test_only";
-const cli = (...args) => exec(process.execPath, ["scripts/catalog-snapshot.mjs", ...args], {
-  env: { ...process.env, CATALOG_DATABASE_URL: operator.href, CATALOG_ALLOW_FIXTURES: "1" },
+const runCli = (args, env = {}) => exec(process.execPath, ["scripts/catalog-snapshot.mjs", ...args], {
+  env: { ...process.env, CATALOG_DATABASE_URL: operator.href, CATALOG_ALLOW_FIXTURES: "1", ...env },
 }).then(({ stdout }) => JSON.parse(stdout));
+const cli = (...args) => runCli(args);
 
 test("operator validates and switches Catalog snapshots while preserving Journal references", async (t) => {
   assert.equal(url.hostname, "127.0.0.1");
@@ -56,6 +57,12 @@ test("operator validates and switches Catalog snapshots while preserving Journal
 
   assert.equal(await activeVersion(), null);
   await assert.rejects(cli("import", "--fixture", join(dir, "unavailable")), /missing-input/);
+  assert.equal(await activeVersion(), null);
+  const stagedArchive = join(dir, "mbdump.tar.bz2");
+  await writeFile(stagedArchive, "archive without detached signature");
+  await assert.rejects(runCli(["import", "--official", "20261121-002203"], {
+    CATALOG_SIGNED_ARCHIVE: stagedArchive,
+  }), /missing-input/);
   assert.equal(await activeVersion(), null);
   const first = await cli("import", "--fixture", fixture(1));
   assert.equal(await activeVersion(), "fixture-1");
@@ -103,6 +110,11 @@ test("operator validates and switches Catalog snapshots while preserving Journal
   await writeFile(join(dir, "mbdump", "artist_gid_redirect"), `${legacyArtist}\t99999\t\\N\n`);
   await assert.rejects(cli("import", "--fixture", dir), /invalid-reference/);
   assert.equal((await cli("status")).last_failure.error_category, "invalid-reference");
+  await cp(join(fixture(2), "mbdump", "artist_gid_redirect"), join(dir, "mbdump", "artist_gid_redirect"));
+  const creditNames = join(dir, "mbdump", "artist_credit_name");
+  const names = await readFile(creditNames, "utf8");
+  await writeFile(creditNames, names.replace(/^1\t[^\n]*\n/gm, ""));
+  await assert.rejects(cli("import", "--fixture", dir), /invalid-credit/);
   assert.equal((await lookup(legacy)).mbid, legacy);
 
   await blocker.query("BEGIN");

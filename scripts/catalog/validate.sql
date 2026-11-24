@@ -44,8 +44,10 @@ FROM (
   )
   UNION ALL
   SELECT 'invalid-credit' WHERE EXISTS (
+    -- A native snapshot can contain unused credits without artist-name rows.
     SELECT c.id FROM pg_temp.artist_credit c
       LEFT JOIN pg_temp.artist_credit_name n ON n.artist_credit = c.id
+      WHERE c.id IN (SELECT g.artist_credit FROM pg_temp.release_group g WHERE g.type = 1)
       GROUP BY c.id
       HAVING c.artist_count < 1 OR count(n.position) <> c.artist_count OR min(n.position) <> 0
         OR max(n.position) <> c.artist_count - 1
