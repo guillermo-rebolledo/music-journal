@@ -18,9 +18,10 @@ const fixture = (version) => `tests/fixtures/catalog/v${version}`;
 const operator = new URL(url);
 operator.username = "catalog_operator_test";
 operator.password = "test_only";
-const cli = (...args) => exec(process.execPath, ["scripts/catalog-snapshot.mjs", ...args], {
-  env: { ...process.env, CATALOG_DATABASE_URL: operator.href, CATALOG_ALLOW_FIXTURES: "1" },
+const runCli = (args, env = {}) => exec(process.execPath, ["scripts/catalog-snapshot.mjs", ...args], {
+  env: { ...process.env, CATALOG_DATABASE_URL: operator.href, CATALOG_ALLOW_FIXTURES: "1", ...env },
 }).then(({ stdout }) => JSON.parse(stdout));
+const cli = (...args) => runCli(args);
 
 test("operator validates and switches Catalog snapshots while preserving Journal references", async (t) => {
   assert.equal(url.hostname, "127.0.0.1");
@@ -56,6 +57,12 @@ test("operator validates and switches Catalog snapshots while preserving Journal
 
   assert.equal(await activeVersion(), null);
   await assert.rejects(cli("import", "--fixture", join(dir, "unavailable")), /missing-input/);
+  assert.equal(await activeVersion(), null);
+  const stagedArchive = join(dir, "mbdump.tar.bz2");
+  await writeFile(stagedArchive, "archive without detached signature");
+  await assert.rejects(runCli(["import", "--official", "20261121-002203"], {
+    CATALOG_SIGNED_ARCHIVE: stagedArchive,
+  }), /missing-input/);
   assert.equal(await activeVersion(), null);
   const first = await cli("import", "--fixture", fixture(1));
   assert.equal(await activeVersion(), "fixture-1");

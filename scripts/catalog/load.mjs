@@ -41,6 +41,16 @@ export async function sourceFiles(source, scratch, signal) {
     return scratch;
   }
 
+  const staged = process.env.CATALOG_SIGNED_ARCHIVE;
+  const archive = staged ? resolve(staged) : join(scratch, "mbdump.tar.bz2");
+  const signature = `${archive}.asc`;
+  if (staged) {
+    const inputs = await Promise.all([archive, signature].map((path) => lstat(path).catch(() => null)));
+    if (inputs.some((file) => !file?.isFile() || !file.size) || inputs[1].size > 64 * 1024) {
+      throw new CatalogError("missing-input", "The staged official archive and its detached .asc signature must be regular files.");
+    }
+  }
+
   const key = process.env.CATALOG_MUSICBRAINZ_KEY;
   if (!key) throw new CatalogError("signature", "Set CATALOG_MUSICBRAINZ_KEY to the MusicBrainz public key file.");
 
@@ -49,9 +59,6 @@ export async function sourceFiles(source, scratch, signal) {
   const gpg = ["--batch", "--no-options", "--no-auto-key-retrieve", "--no-autostart", "--homedir", home];
   const keyring = join(home, "musicbrainz.gpg");
   const opts = commandOptions(signal);
-  const archive = join(scratch, "mbdump.tar.bz2");
-  const signature = `${archive}.asc`;
-  const base = `https://data.metabrainz.org/pub/musicbrainz/data/fullexport/${source.input}/mbdump.tar.bz2`;
 
   try {
     await exec("gpg", [...gpg, "--dearmor", "--output", keyring, resolve(key)], opts);
@@ -63,12 +70,15 @@ export async function sourceFiles(source, scratch, signal) {
     throw new CatalogError("signature", "Could not load the documented MusicBrainz signing key.");
   }
 
-  const curl = ["--fail", "--silent", "--show-error", "--proto", "=https", "--retry", "3", "--connect-timeout", "30"];
-  try {
-    await exec("curl", [...curl, "--output", signature, `${base}.asc`], opts);
-    await exec("curl", [...curl, "--output", archive, base], opts);
-  } catch {
-    throw new CatalogError("download", "Could not download the pinned core dump and signature.");
+  if (!staged) {
+    const base = `https://data.metabrainz.org/pub/musicbrainz/data/fullexport/${source.input}/mbdump.tar.bz2`;
+    const curl = ["--fail", "--silent", "--show-error", "--proto", "=https", "--retry", "3", "--connect-timeout", "30"];
+    try {
+      await exec("curl", [...curl, "--output", signature, `${base}.asc`], opts);
+      await exec("curl", [...curl, "--continue-at", "-", "--output", archive, base], opts);
+    } catch {
+      throw new CatalogError("download", "Could not download the pinned core dump and signature.");
+    }
   }
   try {
     const { stdout } = await exec("gpg", [
