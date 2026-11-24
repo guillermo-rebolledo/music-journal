@@ -36,6 +36,13 @@
       "when": 1794949825889,
       "tag": "0004_handpicked-shelf",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1795464342379,
+      "tag": "0005_catalog-snapshot",
+      "breakpoints": true
     }
   ]
 }

@@ -32,12 +32,14 @@ const discoveryGroups = [
 }));
 let radioThrottled = false;
 let outage = false;
+let musicBrainzOutage = false;
 let requests = [];
 createServer((req, res) => {
   const url = new URL(req.url, "http://localhost");
   res.setHeader("Content-Type", "application/json");
   if (url.pathname === "/control") {
     if (url.searchParams.has("outage")) outage = url.searchParams.get("outage") === "true";
+    if (url.searchParams.has("musicBrainzOutage")) musicBrainzOutage = url.searchParams.get("musicBrainzOutage") === "true";
     if (url.searchParams.has("radioThrottled")) radioThrottled = url.searchParams.get("radioThrottled") === "true";
     if (url.searchParams.has("reset")) requests = [];
     res.end(JSON.stringify(requests)); return;
@@ -72,7 +74,7 @@ createServer((req, res) => {
   }
   requests.push({ url: req.url, time: Date.now(), agent: req.headers["user-agent"], ...(url.pathname.startsWith("/1/") && { privateHeaders: Boolean(req.headers.cookie || req.headers.authorization) }) });
   const query = url.searchParams.get("query") || "";
-  if (outage || query.includes("failure")) { res.writeHead(502); res.end("{}"); return; }
+  if (outage || (musicBrainzOutage && !url.pathname.startsWith("/1/")) || query.includes("failure")) { res.writeHead(502); res.end("{}"); return; }
   if (query.includes("timeout")) { setTimeout(() => res.end("{}"), 4500); return; }
   if (query.includes("throttled")) { res.writeHead(429, { "Retry-After": "6" }); res.end("{}"); return; }
   if (query.includes("malformed")) { res.end('{"unexpected":true}'); return; }
@@ -81,7 +83,11 @@ createServer((req, res) => {
       res.writeHead(429, { "X-RateLimit-Reset-In": "30" }); res.end("{}"); return;
     }
     const seed = url.pathname.split("/").at(-1);
-    const similar = seed === artists[0].id ? [artists[0], ...related] : [];
+    const similar = seed === artists[0].id ? [artists[0], ...related]
+      : seed === "00000000-0000-0000-0000-000000000065" ? [
+        artists[0], { id: "00000000-0000-0000-0000-000000000108", name: related[0].name },
+        related[0], ...related.slice(1),
+      ] : [];
     res.end(JSON.stringify(Object.fromEntries(similar.map(({ id, name }) => [
       id, [{ similar_artist_mbid: id, similar_artist_name: name }],
     ])))); return;
@@ -90,7 +96,10 @@ createServer((req, res) => {
     const id = url.pathname.split("/").at(-1);
     if (id === related[1].id) { res.writeHead(401); res.end("{}"); return; }
     const ranked = id === related[0].id ? [2, 3, 5, 6, 1, 0] : [];
-    res.end(JSON.stringify(ranked.map((index) => ({ release_group_mbid: discoveryGroups[index].id })))); return;
+    const groupIds = id === "00000000-0000-0000-0000-000000000108"
+      ? [...[2, 3, 4, 5, 6].map((index) => discoveryGroups[index].id), ...ids, discoveryGroups[1].id, discoveryGroups[0].id]
+      : ranked.map((index) => discoveryGroups[index].id);
+    res.end(JSON.stringify(groupIds.map((release_group_mbid) => ({ release_group_mbid })))); return;
   }
   if (url.pathname === "/release-group" && url.searchParams.has("artist")) {
     const id = url.searchParams.get("artist");

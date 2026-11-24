@@ -1,0 +1,3 @@
+# A trailing tab is an empty final field in native Postgres COPY text.
+mbdump/artist_credit_name whitespace=-blank-at-eol
+**/mbdump/artist_credit_name whitespace=-blank-at-eol

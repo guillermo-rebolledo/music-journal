@@ -45,9 +45,34 @@ export async function requestProvider<T>(
   ttl: number,
   parse: (data: unknown) => T,
 ): Promise<T> {
-  const cacheKey = `${provider === "musicbrainz" ? "v2" : provider}:${path}`;
-  if (pool.waitingCount >= 8) throw new CatalogError("rate-limit");
+  const startedAt = performance.now();
+  const resource = path.split(/[/?]/, 1)[0];
+  const operation = provider === "musicbrainz"
+    ? `${resource}-${path.startsWith(`${resource}/?`) ? "search" : path.startsWith(`${resource}?`) ? "browse" : "lookup"}`
+    : provider === "listenbrainz" && path.startsWith("1/lb-radio/") ? "related-artists"
+    : provider === "listenbrainz" ? "popularity" : "artwork";
+  // Earlier popularity entries cached only the first eight groups.
+  const cacheNamespace = provider === "musicbrainz" ? "v2" : operation === "popularity" ? "listenbrainz-popularity-v2" : provider;
+  const cacheKey = `${cacheNamespace}:${path}`;
+  let cache = "miss";
+  let outcome = "db-error";
+  let upstreamStatus: number | undefined;
+
+  function report() {
+    console.info(JSON.stringify({
+      event: "catalog-provider", source: "remote", provider, operation, cache, outcome, upstreamStatus,
+      elapsedMs: Math.round(performance.now() - startedAt),
+    }));
+  }
+
+  if (pool.waitingCount >= 8) {
+    outcome = "pool-queue";
+    report();
+    throw new CatalogError("rate-limit");
+  }
   const client = await pool.connect().catch(() => {
+    outcome = "db-connection";
+    report();
     throw new CatalogError("upstream");
   });
   let result: Result<T>;
@@ -58,11 +83,15 @@ export async function requestProvider<T>(
     await client.query("SELECT pg_advisory_xact_lock($1)", [providers[provider].lock]);
     const cached = await client.query("SELECT value FROM catalog_cache WHERE key = $1 AND expires_at > clock_timestamp()", [cacheKey]);
     if (cached.rowCount) {
+      cache = "hit";
       result = cached.rows[0].value as Result<T>;
+      outcome = "error" in result ? result.error
+        : Array.isArray(result.items) && result.items.length === 0 ? "empty" : "success";
     } else {
       const limit = await client.query("SELECT EXTRACT(EPOCH FROM (next_request_at - clock_timestamp())) * 1000 AS wait FROM provider_limit WHERE provider = $1", [provider]);
       const wait = Number(limit.rows[0]?.wait ?? 0);
       if (wait > 1100) {
+        outcome = "provider-cooldown";
         result = { error: "rate-limit", retryAfter: Math.ceil(wait / 1000) };
       } else {
         if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
@@ -72,6 +101,7 @@ export async function requestProvider<T>(
             headers: { "User-Agent": "MusicJournal/0.1 (https://github.com/guillermo-rebolledo/music-journal)", Accept: "application/json" },
             signal: AbortSignal.timeout(4000), cache: "no-store", redirect: "error",
           });
+          upstreamStatus = response.status;
           const throttled = response.status === 429 || response.status === 503;
           if (provider === "listenbrainz" && (throttled || response.headers.get("x-ratelimit-remaining") === "0")) {
             const resetIn = response.headers.get("x-ratelimit-reset-in");
@@ -85,11 +115,13 @@ export async function requestProvider<T>(
             throw new CatalogError(throttled ? "rate-limit" : response.status === 404 ? "missing" : "upstream", delay);
           }
           result = { items: parse(await readJson(response)) };
+          outcome = Array.isArray(result.items) && result.items.length === 0 ? "empty" : "success";
         } catch (error) {
           const timeout = error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name);
           result = error instanceof CatalogError
             ? { error: error.kind, retryAfter: error.retryAfter }
             : { error: timeout ? "timeout" : "upstream" };
+          outcome = result.error;
         }
         await client.query("INSERT INTO provider_limit VALUES ($1, clock_timestamp() + $2 * interval '1 second') ON CONFLICT (provider) DO UPDATE SET next_request_at = EXCLUDED.next_request_at", [provider, delay]);
         await client.query("DELETE FROM catalog_cache WHERE expires_at < clock_timestamp()");
@@ -98,11 +130,14 @@ export async function requestProvider<T>(
     }
     await client.query("COMMIT");
   } catch (error) {
+    const lockTimeout = (error as { code?: string }).code === "55P03";
+    outcome = lockTimeout ? "provider-lock-timeout" : "db-error";
     await client.query("ROLLBACK");
-    if ((error as { code?: string }).code === "55P03") throw new CatalogError("rate-limit");
+    if (lockTimeout) throw new CatalogError("rate-limit");
     throw error;
   } finally {
     client.release();
+    report();
   }
   if ("error" in result) throw new CatalogError(result.error, result.retryAfter);
   return result.items;

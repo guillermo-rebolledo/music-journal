@@ -11,7 +11,10 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "db:migrate": "node --env-file-if-exists=.env --env-file-if-exists=.env.local node_modules/drizzle-kit/bin.cjs migrate",
-    "test": "sh scripts/test-browser.sh"
+    "test": "sh scripts/test-browser.sh",
+    "catalog:snapshot": "node scripts/catalog-snapshot.mjs",
+    "test:catalog-browser": "sh scripts/test-catalog-browser.sh",
+    "test:catalog-import": "sh scripts/test-catalog-import.sh"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
@@ -23,6 +26,7 @@
     "next": "^16.4.6",
     "next-themes": "^0.4.6",
     "pg": "^8.23.1",
+    "pg-copy-streams": "7.0.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "server-only": "^0.0.1",

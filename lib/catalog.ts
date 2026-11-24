@@ -1,11 +1,13 @@
 import "server-only";
-import { eq } from "drizzle-orm";
-import { db } from "./db";
+import { maxSearchLength, minSuggestionLength, type AlbumFilters } from "./catalog-search";
+import { usesLocalCatalog } from "./catalog-identity";
+import { localReleasedAlbums, lookupLocal, searchLocal } from "./local-catalog";
 import { isListenDate } from "./listen-date";
 import { CatalogError, requestProvider, type Failure } from "./provider";
 import { album, artist } from "./schema";
 
 export { CatalogError } from "./provider";
+export { usesLocalCatalog } from "./catalog-identity";
 export type Album = typeof album.$inferSelect;
 export type Artist = typeof artist.$inferSelect;
 
@@ -37,16 +39,27 @@ function parseArtist(value: unknown): Artist | null {
   return { id: item.id.toLowerCase(), name: item.name, disambiguation: typeof item.disambiguation === "string" && item.disambiguation.trim() ? item.disambiguation : null };
 }
 
-function request<T extends { id: string }>(path: string, collection: "release-groups" | "artists" | null, parse: (value: unknown) => T | null): Promise<T[]> {
-  return requestProvider("musicbrainz", path, collection ? 900 : 86400, (data) => {
-    const entries = collection && data && typeof data === "object" && collection in data
-      ? (data as Record<string, unknown>)[collection]
-      : collection ? null : [data];
-    if (!Array.isArray(entries)) throw new CatalogError("upstream");
-    const items = entries.map(parse).filter((item): item is T => item !== null);
-    if (!collection && !items.length) throw new CatalogError("missing");
-    return [...new Map(items.map((item) => [item.id, item])).values()].slice(0, 20);
-  });
+async function request<T extends { id: string }>(operation: string, path: string, collection: "release-groups" | "artists" | null, parse: (value: unknown) => T | null): Promise<T[]> {
+  const start = performance.now();
+  let outcome = "ok";
+  try {
+    const rows = await requestProvider("musicbrainz", path, collection ? 900 : 86400, (data) => {
+      const entries = collection && data && typeof data === "object" && collection in data
+        ? (data as Record<string, unknown>)[collection]
+        : collection ? null : [data];
+      if (!Array.isArray(entries)) throw new CatalogError("upstream");
+      const items = entries.map(parse).filter((item): item is T => item !== null);
+      if (!collection && !items.length) throw new CatalogError("missing");
+      return [...new Map(items.map((item) => [item.id, item])).values()].slice(0, 20);
+    });
+    if (!rows.length) outcome = "empty";
+    return rows;
+  } catch (error) {
+    outcome = error instanceof CatalogError ? error.kind : "db-error";
+    throw error;
+  } finally {
+    console.info("Catalog read", { source: "remote", operation, outcome, elapsedMs: Math.round(performance.now() - start) });
+  }
 }
 
 function parseReleasedAlbum(value: unknown) {
@@ -62,51 +75,77 @@ function parseReleasedAlbum(value: unknown) {
   return { ...album, releaseDate };
 }
 
-export function rankedAlbums(artistId: string, ids: string[]) {
+/** Local results are released, non-compilation Albums credited to the Artist, in input popularity order. */
+export function rankedAlbums(artistId: string, ids: string[], generation?: number | null) {
+  if (usesLocalCatalog()) {
+    if (!isAlbumId(artistId)) throw new CatalogError("missing");
+    return localReleasedAlbums(artistId, generation, ids.filter(isAlbumId));
+  }
   const query = `arid:${artistId} AND rgid:(${ids.join(" OR ")}) AND primarytype:album`;
   const params = new URLSearchParams({ query, fmt: "json", limit: String(ids.length) });
-  return request(`release-group/?${params}`, "release-groups", parseReleasedAlbum);
+  return request("ranked-albums", `release-group/?${params}`, "release-groups", parseReleasedAlbum);
 }
 
-export function artistDiscography(artistId: string) {
+/** Local results apply the same eligibility and website-default policy, newest first, before listener exclusions. */
+export function artistDiscography(artistId: string, generation?: number | null) {
+  if (usesLocalCatalog()) {
+    if (!isAlbumId(artistId)) throw new CatalogError("missing");
+    return localReleasedAlbums(artistId, generation);
+  }
   const params = new URLSearchParams({
     artist: artistId, type: "album", "release-group-status": "website-default",
     inc: "artist-credits", fmt: "json", limit: "12",
   });
   // shortcut: browse one small page, paginate if listeners frequently run out of suggestions.
-  return request(`release-group?${params}`, "release-groups", parseReleasedAlbum);
+  return request("artist-discography", `release-group?${params}`, "release-groups", parseReleasedAlbum);
 }
 
-export async function searchAlbums(title: string) {
+export async function searchAlbums(title: string, filters?: AlbumFilters) {
+  return (await searchAlbumResults(title, filters)).matches;
+}
+
+export async function searchAlbumResults(title: string, filters: AlbumFilters = {}) {
   const normalized = title.trim().replace(/\s+/g, " ");
-  if (!normalized || normalized.length > 200) return [];
+  if (!normalized || normalized.length > maxSearchLength) return { matches: [], artists: [], years: [] };
+  if (usesLocalCatalog()) {
+    if (normalized.length < minSuggestionLength) return { matches: [], artists: [], years: [] };
+    return searchLocal("album", normalized, filters);
+  }
   const escaped = normalized.replace(/[+\-!(){}\[\]^"~*?:\\/&|]/g, "\\$&");
-  return request(`release-group/?${new URLSearchParams({ query: `releasegroup:"${escaped}" AND primarytype:album`, fmt: "json", limit: "20" })}`, "release-groups", parseAlbum);
+  const albums = await request("search-album", `release-group/?${new URLSearchParams({ query: `releasegroup:"${escaped}" AND primarytype:album`, fmt: "json", limit: "20" })}`, "release-groups", parseAlbum);
+  return {
+    matches: albums.filter((album) => (!filters.artist || album.creditedArtist === filters.artist)
+      && (!filters.year || String(album.originalYear) === filters.year)),
+    artists: [...new Set(albums.map((album) => album.creditedArtist))].sort(),
+    years: [...new Set(albums.flatMap((album) => album.originalYear == null ? [] : [album.originalYear]))]
+      .sort((a, b) => b - a).map(String),
+  };
 }
 
-export async function findAlbum(id: string): Promise<Album> {
-  if (!isAlbumId(id)) throw new CatalogError("missing");
-  id = id.toLowerCase();
-  const [local] = await db.select().from(album).where(eq(album.id, id));
-  if (local) return local;
-  const [found] = await request(`release-group/${id}?inc=artist-credits&fmt=json`, null, parseAlbum);
+export async function fetchRemoteAlbum(id: string): Promise<Album> {
+  const [found] = await request("find-album", `release-group/${id}?inc=artist-credits&fmt=json`, null, parseAlbum);
   if (!found || found.id !== id) throw new CatalogError("missing");
   return found;
 }
 
-export async function searchArtists(name: string) {
+export async function searchArtists(name: string, generation?: number | null) {
   const normalized = name.trim().replace(/\s+/g, " ");
-  if (!normalized || normalized.length > 200) return [];
+  if (!normalized || normalized.length > maxSearchLength) return [];
+  if (usesLocalCatalog()) {
+    if (normalized.length < minSuggestionLength) return [];
+    return (await searchLocal("artist", normalized, { generation })).matches;
+  }
   const escaped = normalized.replace(/[+\-!(){}\[\]^"~*?:\\/&|]/g, "\\$&");
-  return request(`artist/?${new URLSearchParams({ query: `artist:"${escaped}"`, fmt: "json", limit: "20" })}`, "artists", parseArtist);
+  return request("search-artist", `artist/?${new URLSearchParams({ query: `artist:"${escaped}"`, fmt: "json", limit: "20" })}`, "artists", parseArtist);
 }
 
-export async function findArtist(id: string): Promise<Artist> {
-  if (!isAlbumId(id)) throw new CatalogError("missing");
-  id = id.toLowerCase();
-  const [local] = await db.select().from(artist).where(eq(artist.id, id));
-  if (local) return local;
-  const [found] = await request(`artist/${id}?fmt=json`, null, parseArtist);
+export async function fetchRemoteArtist(id: string): Promise<Artist> {
+  const [found] = await request("find-artist", `artist/${id}?fmt=json`, null, parseArtist);
   if (!found || found.id !== id) throw new CatalogError("missing");
   return found;
+}
+
+/** Resolve ordered Artist candidates using only the pinned local Catalog. */
+export function findCatalogArtists(ids: string[], generation: number) {
+  return lookupLocal("artist", ids.filter(isAlbumId), generation);
 }

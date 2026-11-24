@@ -1,0 +1,20 @@
+1	aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa	Shared artist	Shared artist	\N	\N	\N	\N	\N	\N	1	\N	\N	Mexican electronic duo	0	\N	f	\N	\N
+2	bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb	Shared artist	Shared artist	\N	\N	\N	\N	\N	\N	1	\N	\N	British folk singer	0	\N	f	\N	\N
+3	cccccccc-cccc-4ccc-8ccc-cccccccccccc	Sparse artist	Sparse artist	\N	\N	\N	\N	\N	\N	1	\N	\N		0	\N	f	\N	\N
+4	00000000-0000-0000-0000-000000000068	First Artist	First Artist	\N	\N	\N	\N	\N	\N	1	\N	\N		0	\N	f	\N	\N
+5	00000000-0000-0000-0000-000000000069	Guest	Guest	\N	\N	\N	\N	\N	\N	1	\N	\N		0	\N	f	\N	\N
+6	00000000-0000-0000-0000-00000000006a	Second Artist	Second Artist	\N	\N	\N	\N	\N	\N	1	\N	\N		0	\N	f	\N	\N
+7	00000000-0000-0000-0000-00000000006b	Direct Artist	Direct Artist	\N	\N	\N	\N	\N	\N	1	\N	\N		0	\N	f	\N	\N
+8	14141414-1414-4414-8414-141414141414	Related studio artist	Related studio artist	\N	\N	\N	\N	\N	\N	1	\N	\N		0	\N	f	\N	\N
+9	ffffffff-ffff-4fff-8fff-ffffffffffff	Related fallback artist	Related fallback artist	\N	\N	\N	\N	\N	\N	1	\N	\N		0	\N	f	\N	\N
+10	12121212-1212-4212-8212-121212121212	Related sparse artist	Related sparse artist	\N	\N	\N	\N	\N	\N	1	\N	\N		0	\N	f	\N	\N
+11	13131313-1313-4313-8313-131313131313	Fourth related artist	Fourth related artist	\N	\N	\N	\N	\N	\N	1	\N	\N		0	\N	f	\N	\N
+12	abababab-abab-4bab-8bab-abababababab	Portrait artist	Portrait artist	\N	\N	\N	\N	\N	\N	1	\N	\N		0	\N	f	\N	\N
+13	561d854a-6a28-4aa7-8c99-323e6ce46c2a	Miles Davis	Miles Davis	\N	\N	\N	\N	\N	\N	1	\N	\N		0	\N	f	\N	\N
+14	b539e453-c4fe-47e3-8a07-8517eac74429	宇多田ヒカル	宇多田ヒカル	\N	\N	\N	\N	\N	\N	1	\N	\N		0	\N	f	\N	\N
+15	00000000-0000-0000-0000-000000000073	Radiohead	Radiohead	\N	\N	\N	\N	\N	\N	1	\N	\N		0	\N	f	\N	\N
+16	00000000-0000-0000-0000-000000000074	Stan Getz	Stan Getz	\N	\N	\N	\N	\N	\N	1	\N	\N		0	\N	f	\N	\N
+17	00000000-0000-0000-0000-000000000075	João Gilberto	João Gilberto	\N	\N	\N	\N	\N	\N	1	\N	\N		0	\N	f	\N	\N
+18	00000000-0000-0000-0000-000000000076	Antônio Carlos Jobim	Antônio Carlos Jobim	\N	\N	\N	\N	\N	\N	1	\N	\N		0	\N	f	\N	\N
+19	00000000-0000-0000-0000-000000000077	Daft Punk	Daft Punk	\N	\N	\N	\N	\N	\N	1	\N	\N		0	\N	f	\N	\N
+20	00000000-0000-0000-0000-000000000078	AC/DC	AC/DC	\N	\N	\N	\N	\N	\N	1	\N	\N		0	\N	f	\N	\N

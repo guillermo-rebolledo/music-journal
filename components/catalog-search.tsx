@@ -154,7 +154,7 @@ export function CatalogSearch({
                   </ul>
                   {kind === "album" && (
                     <p className="mt-0 border-t border-border px-3 py-2 text-sm text-muted-foreground">
-                      Filters narrow up to 20 returned matches.
+                      Up to 20 matches are shown.
                     </p>
                   )}
                 </Popover.Popup>
